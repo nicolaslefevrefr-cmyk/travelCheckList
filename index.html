@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Travel Checklist</title>
+<meta name="description" content="Shared travel checklist, synced with Firebase." />
+<meta name="theme-color" content="#F3EEE2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Checklist" />
+<link rel="manifest" href="./manifest.json" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<link rel="icon" href="./icon-192.png" />
+
+<script>
+  // Anti-flash: apply saved theme/language before first paint.
+  (function(){
+    try{
+      var theme = localStorage.getItem('ct_theme') || 'light';
+      var lang = localStorage.getItem('ct_lang') || 'en';
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.setAttribute('lang', lang);
+    }catch(e){}
+  })();
+</script>
+
+<style>
+  :root{
+    /* ---- Light theme (default) ---- */
+    --bg:#F3EEE2;
+    --bg-alt:#EAE1CC;
+    --surface:#FFFFFF;
+    --surface-2:#F1E9D8;
+    --paper:#FFFFFF;
+    --ink:#182E28;
+    --ink-dim:#4C5C55;
+    --ink-faint:#8B9890;
+    --teal:#2F6F62;
+    --teal-dark:#1F4A40;
+    --amber:#C97A2E;
+    --success:#2F8F5A;
+    --stone:#8D8577;
+    --danger:#C1503A;
+    --divider:rgba(22,48,43,.13);
+    --radius-lg:18px;
+    --radius-md:12px;
+    --radius-sm:8px;
+    --shadow:0 4px 18px rgba(22,48,43,.10);
+    --body-gradient: radial-gradient(circle at 20% -10%, #FBF6EA 0%, var(--bg) 45%, #ECE1C6 100%);
+    --state-icon-fg:#0B1F1A;
+    --c-buy:#3E8E76;
+    --c-take:#C97A2E;
+    --c-during:#3E6E8E;
+    --c-before:#7A5FA8;
+    --c-after:#B5533C;
+  }
+
+  [data-theme="dark"]{
+    --bg:#122420;
+    --bg-alt:#0E1D19;
+    --surface:#1B342D;
+    --surface-2:#223F36;
+    --paper:#F3EEE2;
+    --ink:#EDE7D9;
+    --ink-dim:#A9B6AF;
+    --ink-faint:#79877F;
+    --teal:#4FA98C;
+    --teal-dark:#357B67;
+    --amber:#E0A458;
+    --success:#5FBE82;
+    --stone:#7C8A82;
+    --danger:#DD6A56;
+    --divider:rgba(237,231,217,.13);
+    --shadow:0 4px 18px rgba(6,14,12,.35);
+    --body-gradient: radial-gradient(circle at 20% -10%, #17352E 0%, var(--bg) 45%, var(--bg-alt) 100%);
+    --state-icon-fg:#0B1F1A;
+    --c-buy:#4FA98C;
+    --c-take:#E0A458;
+    --c-during:#5C93B0;
+    --c-before:#9B87C4;
+    --c-after:#D97B63;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--body-gradient);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    min-height:100dvh;
+    padding-bottom:env(safe-area-inset-bottom);
+    transition:background-color .2s ease, color .2s ease;
+  }
+  h1,h2{
+    font-family:"Trebuchet MS",-apple-system,BlinkMacSystemFont,sans-serif;
+    letter-spacing:.01em;
+    margin:0;
+  }
+  button, input{ font-family:inherit; color:inherit; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--teal); outline-offset:2px; }
+  ::selection{ background:var(--teal); color:var(--bg); }
+
+  #app{
+    max-width:560px;
+    margin:0 auto;
+    min-height:100vh;
+    min-height:100dvh;
+    padding:0 16px 40px;
+  }
+
+  .hidden{ display:none !important; }
+
+  /* ---------- Top bar (language + theme) ---------- */
+  .top-bar{
+    position:sticky; top:0; z-index:40;
+    background:var(--bg);
+    border-bottom:1px solid var(--divider);
+    backdrop-filter:blur(6px);
+  }
+  .top-bar-inner{
+    max-width:560px; margin:0 auto;
+    display:flex; align-items:center; justify-content:flex-end; gap:10px;
+    padding:8px 16px;
+  }
+  .lang-switch{
+    display:flex; background:var(--surface); border:1px solid var(--divider);
+    border-radius:999px; padding:2px; gap:2px;
+  }
+  .lang-switch button{
+    background:none; border:none; border-radius:999px;
+    padding:5px 10px; font-size:11.5px; font-weight:800; letter-spacing:.04em;
+    color:var(--ink-faint);
+  }
+  .lang-switch button.active{ background:var(--teal); color:#0B1F1A; }
+
+  .theme-switch{
+    position:relative;
+    width:52px; height:30px; border-radius:999px;
+    background:var(--surface); border:1px solid var(--divider);
+    padding:0;
+  }
+  .theme-thumb{
+    position:absolute; top:2px; left:2px;
+    width:24px; height:24px; border-radius:50%;
+    background:var(--amber);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px;
+    transition:transform .18s ease, background .18s ease;
+  }
+  [data-theme="dark"] .theme-thumb{ transform:translateX(22px); background:var(--teal); }
+
+  /* ---------- Home screen ---------- */
+  .hero{ padding:36px 4px 20px; }
+  .eyebrow{
+    font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--amber); margin:0 0 8px; font-weight:700;
+  }
+  .hero h1{ font-size:34px; color:var(--ink); }
+  .hero .sub{ color:var(--ink-dim); margin:10px 0 0; line-height:1.5; font-size:15px; max-width:40ch; }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--divider);
+    border-radius:var(--radius-lg);
+    padding:18px;
+    margin-bottom:16px;
+    box-shadow:var(--shadow);
+  }
+  .card h2{ font-size:15px; color:var(--ink); margin-bottom:12px; }
+
+  .field-row{ display:flex; gap:10px; }
+  .field-col{ display:flex; flex-direction:column; gap:10px; }
+
+  input[type="text"], input:not([type]), input[type="email"], input[type="password"]{
+    background:var(--bg-alt);
+    border:1px solid var(--divider);
+    color:var(--ink);
+    border-radius:var(--radius-sm);
+    padding:12px 14px;
+    font-size:15px;
+    width:100%;
+    min-height:44px;
+  }
+  input::placeholder{ color:var(--ink-faint); }
+
+  #input-join-code{
+    text-transform:uppercase;
+    letter-spacing:.35em;
+    text-align:center;
+    font-weight:700;
+    font-size:17px;
+  }
+
+  .checkbox-row{
+    display:flex; align-items:center; gap:10px;
+    color:var(--ink-dim); font-size:14px; padding:2px 2px;
+  }
+  .checkbox-row input{ width:18px; height:18px; accent-color:var(--teal); }
+
+  .btn{
+    border:none; border-radius:var(--radius-sm);
+    padding:12px 18px; font-size:15px; font-weight:600;
+    min-height:44px; transition:transform .08s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .btn-primary{ background:var(--teal); color:#0B1F1A; }
+  .btn-accent{ background:var(--amber); color:#2B1B05; width:100%; }
+  .btn-ghost{ background:transparent; color:var(--ink-dim); border:1px solid var(--divider); }
+  .btn-danger{ background:var(--danger); color:#2B0B05; }
+
+  .error-text{ color:var(--danger); font-size:13px; margin:10px 2px 0; }
+
+  .mode-indicator{
+    text-align:center; font-size:12.5px; color:var(--ink-faint);
+    margin-top:6px; letter-spacing:.02em;
+  }
+  .mode-indicator.connected{ color:var(--success); }
+
+  #recent-list{ display:flex; flex-direction:column; gap:8px; }
+  .recent-item{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--bg-alt); border:1px solid var(--divider);
+    border-radius:var(--radius-sm); padding:10px 12px;
+    font-size:14px; text-align:left; width:100%;
+  }
+  .recent-item .r-name{ color:var(--ink); font-weight:600; }
+  .recent-item .r-code{ color:var(--ink-faint); font-family:monospace; letter-spacing:.1em; font-size:12px; }
+
+  /* ---------- Event screen ---------- */
+  .event-header{
+    display:flex; align-items:center; gap:10px;
+    padding:18px 0 12px;
+  }
+  .icon-btn{
+    background:var(--surface); border:1px solid var(--divider);
+    width:40px; height:40px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; flex:0 0 auto;
+  }
+  .event-title{ flex:1; min-width:0; }
+  .event-title h1{
+    font-size:19px; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    cursor:text; border-bottom:1px dashed transparent; padding-bottom:1px;
+  }
+  .event-title h1:hover{ border-bottom-color:var(--divider); }
+  .code-chip{
+    margin-top:4px; background:none; border:none; padding:0;
+    color:var(--ink-faint); font-size:12px; font-family:monospace;
+    letter-spacing:.15em; display:flex; align-items:center; gap:4px;
+  }
+
+  .banner{
+    background:var(--surface-2); border:1px dashed var(--amber);
+    border-radius:var(--radius-md); padding:10px 14px;
+    font-size:13px; color:var(--ink-dim);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; margin-bottom:16px; flex-wrap:wrap;
+  }
+  .banner button{
+    background:var(--amber); color:#2B1B05; border:none;
+    border-radius:var(--radius-sm); padding:7px 12px; font-size:12.5px; font-weight:700;
+  }
+
+  .cat-section{
+    background:var(--surface);
+    border:1px solid var(--divider);
+    border-radius:var(--radius-lg);
+    margin-bottom:12px;
+    overflow:visible;
+    box-shadow:var(--shadow);
+  }
+  .cat-header{
+    width:100%; background:none; border:none;
+    display:flex; align-items:center; gap:10px;
+    padding:14px 14px;
+    text-align:left;
+  }
+  .stamp{
+    flex:0 0 auto;
+    background:var(--accent);
+    color:#0B1F1A;
+    font-family:monospace;
+    font-weight:800;
+    font-size:11px;
+    letter-spacing:.06em;
+    border-radius:999px;
+    padding:5px 9px;
+  }
+  .cat-title{ flex:1; font-size:15px; font-weight:700; color:var(--ink); }
+  .cat-count{ font-size:12.5px; color:var(--ink-faint); font-family:monospace; }
+  .chevron{ color:var(--ink-faint); font-size:14px; width:14px; text-align:center; }
+
+  .cat-body{
+    border-top:1px dashed var(--divider);
+    padding:6px 10px 12px;
+  }
+
+  .item-list{ list-style:none; margin:0; padding:0; }
+  .empty-hint{ color:var(--ink-faint); font-size:13px; padding:12px 6px; font-style:italic; }
+
+  .item-row{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 4px;
+    border-bottom:1px solid var(--divider);
+    position:relative;
+  }
+  .item-row:last-child{ border-bottom:none; }
+
+  .state-btn{
+    flex:0 0 auto; width:26px; height:26px; border-radius:50%;
+    border:2px solid var(--ink-faint); background:transparent;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:800; color:transparent;
+  }
+  .state-todo .state-btn{ border-color:var(--ink-faint); }
+  .state-done .state-btn{ background:var(--success); border-color:var(--success); color:#0B1F1A; }
+  .state-cancelled .state-btn{ background:var(--stone); border-color:var(--stone); color:#0B1F1A; }
+
+  .item-text{
+    flex:1; min-width:0; font-size:14.5px; line-height:1.4;
+    word-break:break-word; cursor:text; padding:4px 2px; border-radius:6px;
+  }
+  .item-text:hover{ background:rgba(237,231,217,.05); }
+  .state-done .item-text{ color:var(--success); }
+  .state-cancelled .item-text{ color:var(--stone); text-decoration:line-through; }
+
+  .edit-input{
+    flex:1; min-width:0; background:var(--bg-alt); border:1px solid var(--teal);
+    border-radius:6px; padding:6px 8px; font-size:14.5px; color:var(--ink);
+  }
+
+  .kebab-btn{
+    flex:0 0 auto; background:none; border:none; color:var(--ink-faint);
+    font-size:18px; padding:4px 6px; line-height:1;
+  }
+
+  .item-menu{
+    position:absolute; right:6px; top:calc(100% - 4px); z-index:5;
+    background:var(--bg-alt); border:1px solid var(--divider);
+    border-radius:var(--radius-md); padding:10px; width:min(240px, 90vw);
+    box-shadow:var(--shadow);
+  }
+  .item-menu.menu-up{ top:auto; bottom:calc(100% - 4px); }
+  .menu-label{ font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.08em; margin:0 0 8px; }
+  .menu-cats{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .menu-move{
+    background:var(--surface-2); border:1px solid var(--divider); color:var(--ink);
+    border-radius:999px; padding:6px 10px; font-size:12px; font-weight:700; font-family:monospace;
+  }
+  .menu-move:active{ background:var(--teal); color:#0B1F1A; }
+  .menu-delete{
+    width:100%; background:none; border:1px solid var(--danger); color:var(--danger);
+    border-radius:var(--radius-sm); padding:8px; font-size:13px; font-weight:600;
+  }
+
+  .add-row{ display:flex; gap:8px; margin-top:8px; padding:0 2px; }
+  .add-input{
+    flex:1; background:var(--bg-alt); border:1px solid var(--divider);
+    border-radius:var(--radius-sm); padding:10px 12px; font-size:14px; color:var(--ink);
+    min-height:40px;
+  }
+  .add-btn{
+    flex:0 0 auto; width:40px; height:40px; border-radius:var(--radius-sm);
+    background:var(--teal); color:#0B1F1A; border:none; font-size:18px; font-weight:800;
+  }
+
+  /* ---------- Modal ---------- */
+  .modal{
+    position:fixed; inset:0; background:rgba(6,14,12,.7);
+    display:flex; align-items:flex-end; justify-content:center; z-index:50;
+    padding:0;
+  }
+  .modal-card{
+    background:var(--surface); width:100%; max-width:560px;
+    border-radius:20px 20px 0 0; padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:88vh; overflow-y:auto;
+    box-shadow:0 -8px 30px rgba(0,0,0,.4);
+  }
+  @media (min-width:600px){
+    .modal{ align-items:center; }
+    .modal-card{ border-radius:20px; max-height:80vh; }
+  }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .modal-head h2{ font-size:17px; }
+  .hint{ color:var(--ink-dim); font-size:13px; line-height:1.5; margin:0 0 16px; }
+  .status-row{ font-size:13px; color:var(--stone); margin:14px 2px 0; }
+  .status-row.connected{ color:var(--success); }
+  .status-row.error{ color:var(--danger); }
+  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-actions .btn{ flex:1; }
+  .rules-help{ margin-top:18px; color:var(--ink-dim); font-size:13px; }
+  .rules-help summary{ cursor:pointer; color:var(--teal); font-weight:600; }
+  .rules-help pre{
+    background:var(--bg-alt); border:1px solid var(--divider); border-radius:var(--radius-sm);
+    padding:12px; font-size:11.5px; overflow-x:auto; color:var(--ink-dim); margin-top:10px; line-height:1.5;
+  }
+
+  /* ---------- Toasts ---------- */
+  #toast-container{
+    position:fixed; left:0; right:0; bottom:calc(18px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; align-items:center; gap:8px; z-index:100;
+    pointer-events:none; padding:0 16px;
+  }
+  .toast{
+    background:var(--surface-2); color:var(--ink); border:1px solid var(--divider);
+    border-radius:999px; padding:10px 18px; font-size:13.5px;
+    box-shadow:var(--shadow); max-width:90vw; text-align:center;
+    animation:toast-in .18s ease-out;
+  }
+  @keyframes toast-in{ from{ opacity:0; transform:translateY(8px);} to{ opacity:1; transform:translateY(0);} }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="top-bar-inner">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button id="lang-en" data-lang="en" class="active">EN</button>
+        <button id="lang-fr" data-lang="fr">FR</button>
+      </div>
+      <button id="theme-toggle" class="theme-switch" aria-label="Toggle dark mode">
+        <span class="theme-thumb">☀️</span>
+      </button>
+    </div>
+  </div>
+  <div id="app">
+
+    <!-- ============ HOME SCREEN ============ -->
+    <section id="screen-home" class="screen">
+      <div class="hero">
+        <p class="eyebrow" data-i18n="eyebrow">Shared travel journal</p>
+        <h1 data-i18n="appTitle">Checklist</h1>
+        <p class="sub" data-i18n="heroSub">Create or join an event to prepare your things and tasks together, in real time.</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="joinTitle">Join an event</h2>
+        <div class="field-row">
+          <input id="input-join-code" maxlength="6" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
+          <button id="btn-join" class="btn btn-primary" data-i18n="joinBtn">Join</button>
+        </div>
+        <p id="join-error" class="error-text hidden"></p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="createTitle">Create a new event</h2>
+        <div class="field-col">
+          <input id="input-new-name" placeholder="Name (e.g. Corsica vacation)" data-i18n-placeholder="namePlaceholder" autocomplete="off" />
+          <label class="checkbox-row"><input type="checkbox" id="input-seed" checked /> <span data-i18n="seedLabel">Pre-fill with examples</span></label>
+          <button id="btn-create" class="btn btn-accent" data-i18n="createBtn">Create event</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="recent-card">
+        <h2 data-i18n="recentTitle">Recent</h2>
+        <div id="recent-list"></div>
+      </div>
+
+      <p class="mode-indicator" id="mode-indicator">Local mode — no Firebase configured</p>
+      <div style="text-align:center;margin-top:10px;">
+        <button id="btn-settings-home" class="btn btn-ghost" data-i18n="settingsBtn">⚙️ Firebase settings</button>
+      </div>
+    </section>
+
+    <!-- ============ EVENT SCREEN ============ -->
+    <section id="screen-event" class="screen hidden">
+      <div class="event-header">
+        <button id="btn-leave" class="icon-btn" aria-label="Back to home">←</button>
+        <div class="event-title">
+          <h1 id="event-name-display" title="Tap to rename">Trip</h1>
+          <button id="btn-copy-code" class="code-chip"><span id="event-code-display">------</span> <span class="copy-icon">📋</span> <span data-i18n="copyCode">copy</span></button>
+        </div>
+        <button id="btn-settings" class="icon-btn" aria-label="Settings">⚙️</button>
+      </div>
+
+      <div id="export-banner" class="banner hidden">
+        <span data-i18n="localBanner">📦 Local checklist on this device</span>
+        <button id="btn-export" data-i18n="exportBtn">Export to Firebase ☁️</button>
+      </div>
+
+      <div id="categories-root"></div>
+    </section>
+
+  </div>
+
+  <!-- ============ SETTINGS MODAL ============ -->
+  <div id="modal-settings" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="settingsModalTitle">Firebase settings</h2>
+        <button id="btn-close-settings" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="hint" data-i18n="settingsHint">Enter your Firebase project (Firestore) configuration to sync your checklists across devices and users. Leave these fields empty to stay in local mode (data kept only on this device).</p>
+      <div class="field-col">
+        <input id="cfg-apiKey" placeholder="apiKey" autocomplete="off" />
+        <input id="cfg-authDomain" placeholder="authDomain" autocomplete="off" />
+        <input id="cfg-projectId" placeholder="projectId" autocomplete="off" />
+        <input id="cfg-storageBucket" placeholder="storageBucket" autocomplete="off" />
+        <input id="cfg-messagingSenderId" placeholder="messagingSenderId" autocomplete="off" />
+        <input id="cfg-appId" placeholder="appId" autocomplete="off" />
+      </div>
+      <p class="status-row" id="settings-status">● Local mode</p>
+      <div class="modal-actions">
+        <button id="btn-clear-config" class="btn btn-ghost" data-i18n="clear">Clear</button>
+        <button id="btn-save-config" class="btn btn-primary" data-i18n="saveConnect">Save &amp; connect</button>
+      </div>
+      <details class="rules-help">
+        <summary data-i18n="rulesSummary">Recommended Firestore rules</summary>
+        <pre>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /events/{eventId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}</pre>
+        <p style="margin-top:8px;" data-i18n="rulesNote">Also enable "Anonymous" sign-in in Firebase Authentication so these rules work.</p>
+      </details>
+    </div>
+  </div>
+
+  <div id="toast-container" aria-live="polite"></div>
+
+<script type="module">
+  /* ===================== Constantes ===================== */
+  // The 3-4 letter "stamp" codes are visual badges only (language-neutral),
+  // the actual category label is translated via I18N.categories.
+  const CATEGORIES = [
+    { key:'buy',    code:'BUY',  color:'var(--c-buy)' },
+    { key:'take',   code:'PACK', color:'var(--c-take)' },
+    { key:'before', code:'PRE',  color:'var(--c-before)' },
+    { key:'during', code:'TRIP', color:'var(--c-during)' },
+    { key:'after',  code:'POST', color:'var(--c-after)' },
+  ];
+
+  const LS = {
+    config:'ct_firebaseConfig',
+    localEvents:'ct_localEvents',
+    recents:'ct_recents',
+    current:'ct_currentEvent',
+    lang:'ct_lang',
+    theme:'ct_theme',
+  };
+
+  const FIREBASE_VERSION = '10.12.2';
+
+  /* ===================== Internationalisation ===================== */
+  const I18N = {
+    en: {
+      appTitle:"Checklist",
+      eyebrow:"Shared travel journal",
+      heroSub:"Create or join an event to prepare your things and tasks together, in real time.",
+      joinTitle:"Join an event",
+      joinBtn:"Join",
+      joinErrLen:"The code must contain 6 characters.",
+      joinErrNotFoundFirebase:"No event found with this code on Firebase.",
+      joinErrNotFoundLocal:"No local event with this code on this device. (Configure Firebase if the event was created elsewhere.)",
+      joinErrGeneric:"Error: {msg}",
+      createTitle:"Create a new event",
+      namePlaceholder:"Name (e.g. Corsica vacation)",
+      seedLabel:"Pre-fill with examples",
+      createBtn:"Create event",
+      creationError:"Error while creating: {msg}",
+      recentTitle:"Recent",
+      recentUnavailable:"This event is no longer available.",
+      modeLocal:"Local mode — no Firebase configured",
+      modeConnected:"● Connected to Firebase",
+      settingsBtn:"⚙️ Firebase settings",
+      renameTitle:"Tap to rename",
+      copyCode:"copy",
+      codeCopied:"Code copied!",
+      localBanner:"📦 Local checklist on this device",
+      exportBtn:"Export to Firebase ☁️",
+      exportConfirm:"Export this local checklist to Firebase with code {code}?",
+      exportNeedsFirebase:"Configure Firebase in settings before exporting.",
+      exportSuccess:"Export successful ✅",
+      exportSuccessNewCode:"Export successful, new code: {code}",
+      exportFail:"Export failed: {msg}",
+      settingsModalTitle:"Firebase settings",
+      settingsHint:"Enter your Firebase project (Firestore) configuration to sync your checklists across devices and users. Leave these fields empty to stay in local mode (data kept only on this device).",
+      saveConnect:"Save & connect",
+      clear:"Clear",
+      statusLocal:"● Local mode",
+      statusConnected:"● Connected to Firebase",
+      statusConnecting:"Connecting…",
+      statusMinFields:"apiKey and projectId are required at minimum.",
+      statusConnectFail:"Connection failed: {msg}",
+      rulesSummary:"Recommended Firestore rules",
+      rulesNote:'Also enable "Anonymous" sign-in in Firebase Authentication so these rules work.',
+      firebaseConnected:"Connected to Firebase ✅",
+      firebaseFailToast:"Could not connect to Firebase, local mode active.",
+      localModeToast:"Local mode enabled.",
+      configCleared:"Firebase configuration removed. Local mode active.",
+      deleteConfirm:'Delete "{name}"?',
+      moveTo:"Move to",
+      delete:"🗑 Delete",
+      addPlaceholder:'Add to "{cat}"…',
+      emptyHint:"Nothing here yet.",
+      eventDeletedToast:"This event no longer exists.",
+      localEventNotFound:"Local event not found.",
+      connectToJoin:"Connect Firebase to join this event.",
+      updateError:"Update error: {msg}",
+      addError:"Add error: {msg}",
+      deleteError:"Delete error: {msg}",
+      syncError:"Firebase sync error.",
+      defaultEventName:"My trip",
+      defaultVoyage:"Trip",
+      stateAria:"Toggle state",
+      optionsAria:"Options",
+      backAria:"Back to home",
+      settingsAria:"Settings",
+      closeAria:"Close",
+      categories:{ buy:"To buy", take:"To pack", during:"During the trip", before:"Before leaving", after:"After the trip" },
+      seed:[
+        { category:'buy',    text:"Gas bottle" },
+        { category:'buy',    text:"Sunscreen" },
+        { category:'take',   text:"Passports / ID cards" },
+        { category:'take',   text:"Phone chargers" },
+        { category:'during', text:"Buy groceries on site" },
+        { category:'before', text:"Turn off the gas" },
+        { category:'before', text:"Empty the fridge" },
+        { category:'after',  text:"Do the laundry" },
+      ],
+    },
+    fr: {
+      appTitle:"Check-list",
+      eyebrow:"Carnet de voyage partagé",
+      heroSub:"Créez ou rejoignez un événement pour préparer vos affaires et vos tâches à plusieurs, en temps réel.",
+      joinTitle:"Rejoindre un événement",
+      joinBtn:"Rejoindre",
+      joinErrLen:"Le code doit contenir 6 caractères.",
+      joinErrNotFoundFirebase:"Aucun événement trouvé avec ce code sur Firebase.",
+      joinErrNotFoundLocal:"Aucun événement local avec ce code sur cet appareil. (Configurez Firebase si l'événement a été créé ailleurs.)",
+      joinErrGeneric:"Erreur : {msg}",
+      createTitle:"Créer un nouvel événement",
+      namePlaceholder:"Nom (ex : Vacances en Corse)",
+      seedLabel:"Pré-remplir avec des exemples",
+      createBtn:"Créer l'événement",
+      creationError:"Erreur lors de la création : {msg}",
+      recentTitle:"Récents",
+      recentUnavailable:"Cet événement n'est plus disponible.",
+      modeLocal:"Mode local — aucun Firebase configuré",
+      modeConnected:"● Connecté à Firebase",
+      settingsBtn:"⚙️ Paramètres Firebase",
+      renameTitle:"Toucher pour renommer",
+      copyCode:"copier",
+      codeCopied:"Code copié !",
+      localBanner:"📦 Check-list locale sur cet appareil",
+      exportBtn:"Exporter vers Firebase ☁️",
+      exportConfirm:"Exporter cette check-list locale vers Firebase avec le code {code} ?",
+      exportNeedsFirebase:"Configurez Firebase dans les paramètres avant d'exporter.",
+      exportSuccess:"Export réussi ✅",
+      exportSuccessNewCode:"Export réussi, nouveau code : {code}",
+      exportFail:"Échec de l'export : {msg}",
+      settingsModalTitle:"Paramètres Firebase",
+      settingsHint:"Renseignez la configuration de votre projet Firebase (Firestore) pour synchroniser vos check-lists entre appareils et utilisateurs. Laissez ces champs vides pour rester en mode local (données conservées uniquement sur cet appareil).",
+      saveConnect:"Enregistrer & connecter",
+      clear:"Effacer",
+      statusLocal:"● Mode local",
+      statusConnected:"● Connecté à Firebase",
+      statusConnecting:"Connexion en cours…",
+      statusMinFields:"Au minimum apiKey et projectId sont requis.",
+      statusConnectFail:"Échec de connexion : {msg}",
+      rulesSummary:"Règles Firestore recommandées",
+      rulesNote:'Activez aussi la connexion "Anonyme" dans Firebase Authentication pour que ces règles fonctionnent.',
+      firebaseConnected:"Connecté à Firebase ✅",
+      firebaseFailToast:"Connexion Firebase impossible, mode local activé.",
+      localModeToast:"Mode local activé.",
+      configCleared:"Configuration Firebase supprimée. Mode local actif.",
+      deleteConfirm:'Supprimer « {name} » ?',
+      moveTo:"Déplacer vers",
+      delete:"🗑 Supprimer",
+      addPlaceholder:'Ajouter à « {cat} »…',
+      emptyHint:"Aucun élément pour l'instant.",
+      eventDeletedToast:"Cet événement n'existe plus.",
+      localEventNotFound:"Événement local introuvable.",
+      connectToJoin:"Connectez Firebase pour rejoindre cet événement.",
+      updateError:"Erreur de mise à jour : {msg}",
+      addError:"Erreur d'ajout : {msg}",
+      deleteError:"Erreur de suppression : {msg}",
+      syncError:"Erreur de synchronisation Firebase.",
+      defaultEventName:"Mon voyage",
+      defaultVoyage:"Voyage",
+      stateAria:"Changer l'état",
+      optionsAria:"Options",
+      backAria:"Retour à l'accueil",
+      settingsAria:"Paramètres",
+      closeAria:"Fermer",
+      categories:{ buy:"À acheter", take:"À emporter", during:"Pendant le voyage", before:"Avant de partir", after:"Après le voyage" },
+      seed:[
+        { category:'buy',    text:"Bouteille de gaz" },
+        { category:'buy',    text:"Crème solaire" },
+        { category:'take',   text:"Passeports / pièces d'identité" },
+        { category:'take',   text:"Chargeurs de téléphone" },
+        { category:'during', text:"Faire les courses sur place" },
+        { category:'before', text:"Éteindre le gaz" },
+        { category:'before', text:"Vider le réfrigérateur" },
+        { category:'after',  text:"Faire la lessive" },
+      ],
+    },
+  };
+
+  /* ===================== Utilitaires ===================== */
+  const $ = sel => document.querySelector(sel);
+  function uid(){ return (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+'-'+Math.random().toString(36).slice(2)); }
+  function genCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+    return s;
+  }
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  }
+  function lsGet(key, fallback){
+    try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function lsSet(key, val){
+    try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ console.warn('localStorage unavailable', e); }
+  }
+  function toast(msg, ms=3200){
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    $('#toast-container').appendChild(el);
+    setTimeout(()=> el.remove(), ms);
+  }
+  function nextState(s){ return s==='todo' ? 'done' : (s==='done' ? 'cancelled' : 'todo'); }
+
+  /* ===================== État global ===================== */
+  let fbApp=null, fbDb=null, fbAuth=null, fsMod=null, fbReady=false;
+  let currentEventCode=null, currentMode=null; // mode: 'local' | 'firebase'
+  let currentUnsub=null;
+  let lastEventData=null;
+  let openCats = new Set(CATEGORIES.map(c=>c.key));
+  let openMenuId=null;
+  let currentLang = lsGet(LS.lang, 'en');
+  let currentTheme = lsGet(LS.theme, 'light');
+
+  /* ===================== Langue / thème ===================== */
+  function t(key, vars){
+    const dict = I18N[currentLang] || I18N.en;
+    let str = dict[key] !== undefined ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key);
+    if(vars){ Object.keys(vars).forEach(k => { str = str.replace('{'+k+'}', vars[k]); }); }
+    return str;
+  }
+  function catLabel(key){
+    const dict = I18N[currentLang] || I18N.en;
+    return (dict.categories && dict.categories[key]) || (I18N.en.categories[key]) || key;
+  }
+  function applyStaticI18n(){
+    document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPlaceholder); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(el=>{ el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+    document.querySelectorAll('[data-i18n-title]').forEach(el=>{ el.setAttribute('title', t(el.dataset.i18nTitle)); });
+    updateModeIndicator();
+  }
+  function updateLangSwitchUI(){
+    $('#lang-en').classList.toggle('active', currentLang==='en');
+    $('#lang-fr').classList.toggle('active', currentLang==='fr');
+  }
+  function setLang(lang){
+    currentLang = lang;
+    lsSet(LS.lang, lang);
+    document.documentElement.setAttribute('lang', lang);
+    updateLangSwitchUI();
+    applyStaticI18n();
+    if(!$('#screen-event').classList.contains('hidden') && lastEventData){ renderEvent(lastEventData); }
+    else { renderHome(); }
+  }
+  function updateThemeSwitchUI(){
+    const thumb = document.querySelector('#theme-toggle .theme-thumb');
+    if(thumb) thumb.textContent = currentTheme==='dark' ? '🌙' : '☀️';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute('content', currentTheme==='dark' ? '#122420' : '#F3EEE2');
+  }
+  function setTheme(theme){
+    currentTheme = theme;
+    lsSet(LS.theme, theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeSwitchUI();
+  }
+
+  /* ===================== Connexion Firebase ===================== */
+  async function connectFirebase(config){
+    const appMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
+    const fs = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
+    const authMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`);
+    fbApp = appMod.initializeApp(config);
+    fbDb = fs.getFirestore(fbApp);
+    fsMod = fs;
+    fbAuth = authMod.getAuth(fbApp);
+    try{ await authMod.signInAnonymously(fbAuth); }
+    catch(e){ console.warn("Anonymous sign-in unavailable (check that it's enabled in Firebase Auth):", e); }
+    fbReady = true;
+  }
+
+  async function codeExists(code, mode){
+    if(mode==='firebase'){
+      const snap = await fsMod.getDoc(fsMod.doc(fbDb,'events',code));
+      return snap.exists();
+    }
+    const all = lsGet(LS.localEvents, {});
+    return !!all[code];
+  }
+
+  /* ===================== Écrans ===================== */
+  function showScreen(name){
+    $('#screen-home').classList.toggle('hidden', name!=='home');
+    $('#screen-event').classList.toggle('hidden', name!=='event');
+  }
+
+  function updateModeIndicator(){
+    const el = $('#mode-indicator');
+    if(fbReady){
+      el.textContent = t('modeConnected');
+      el.classList.add('connected');
+    } else {
+      el.textContent = t('modeLocal');
+      el.classList.remove('connected');
+    }
+  }
+
+  /* ===================== Accueil ===================== */
+  function pushRecent(code, name, mode){
+    const list = lsGet(LS.recents, []).filter(r=>r.code!==code);
+    list.unshift({ code, name, mode, ts:Date.now() });
+    lsSet(LS.recents, list.slice(0,6));
+  }
+
+  function renderHome(){
+    updateModeIndicator();
+    const list = lsGet(LS.recents, []);
+    const card = $('#recent-card');
+    const root = $('#recent-list');
+    if(!list.length){ card.classList.add('hidden'); root.innerHTML=''; return; }
+    card.classList.remove('hidden');
+    root.innerHTML = list.map(r => `
+      <button class="recent-item" data-code="${r.code}" data-mode="${r.mode}">
+        <span class="r-name">${escapeHtml(r.name || t('defaultVoyage'))}</span>
+        <span class="r-code">${r.code} · ${r.mode==='firebase' ? '☁️' : '📦'}</span>
+      </button>
+    `).join('');
+  }
+
+  async function handleJoin(){
+    const input = $('#input-join-code');
+    const code = input.value.trim().toUpperCase();
+    const err = $('#join-error');
+    err.classList.add('hidden');
+    if(code.length!==6){ err.textContent = t('joinErrLen'); err.classList.remove('hidden'); return; }
+    const btn = $('#btn-join'); btn.disabled = true;
+    try{
+      const mode = fbReady ? 'firebase' : 'local';
+      const exists = await codeExists(code, mode);
+      if(!exists){
+        err.textContent = fbReady ? t('joinErrNotFoundFirebase') : t('joinErrNotFoundLocal');
+        err.classList.remove('hidden');
+        return;
+      }
+      enterEvent(code, mode);
+    } catch(e){
+      err.textContent = t('joinErrGeneric', { msg:e.message });
+      err.classList.remove('hidden');
+    } finally { btn.disabled = false; }
+  }
+
+  async function handleCreate(){
+    const name = $('#input-new-name').value.trim() || t('defaultEventName');
+    const seed = $('#input-seed').checked;
+    const mode = fbReady ? 'firebase' : 'local';
+    const btn = $('#btn-create'); btn.disabled = true;
+    try{
+      let code;
+      do{ code = genCode(); } while(await codeExists(code, mode));
+      const items = {};
+      if(seed){
+        const seedItems = (I18N[currentLang] || I18N.en).seed;
+        seedItems.forEach((s,i)=>{
+          const id = uid();
+          items[id] = { id, text:s.text, category:s.category, state:'todo', order:Date.now()+i, updatedAt:Date.now() };
+        });
+      }
+      const data = { name, items, createdAt:Date.now() };
+      if(mode==='firebase'){
+        await fsMod.setDoc(fsMod.doc(fbDb,'events',code), data);
+      } else {
+        const all = lsGet(LS.localEvents, {});
+        all[code] = data;
+        lsSet(LS.localEvents, all);
+      }
+      enterEvent(code, mode);
+    } catch(e){
+      toast(t('creationError', { msg:e.message }));
+    } finally { btn.disabled = false; }
+  }
+
+  function enterEvent(code, mode){
+    currentEventCode = code;
+    currentMode = mode;
+    lsSet(LS.current, { code, mode });
+    showScreen('event');
+    startListening();
+  }
+
+  function goHome(){
+    if(currentUnsub) currentUnsub();
+    currentUnsub = null;
+    currentEventCode = null;
+    currentMode = null;
+    lastEventData = null;
+    lsSet(LS.current, null);
+    showScreen('home');
+    renderHome();
+  }
+
+  /* ===================== Écoute / synchronisation ===================== */
+  function startListening(){
+    if(currentUnsub) currentUnsub();
+    if(currentMode==='firebase'){
+      const ref = fsMod.doc(fbDb,'events',currentEventCode);
+      currentUnsub = fsMod.onSnapshot(ref, snap=>{
+        if(!snap.exists()){ toast(t('eventDeletedToast')); goHome(); return; }
+        lastEventData = snap.data();
+        if(!lastEventData.items) lastEventData.items = {};
+        renderEvent(lastEventData);
+      }, err=>{
+        console.error(err);
+        toast(t('syncError'));
+      });
+    } else {
+      const all = lsGet(LS.localEvents, {});
+      lastEventData = all[currentEventCode];
+      if(!lastEventData){ toast(t('localEventNotFound')); goHome(); return; }
+      if(!lastEventData.items) lastEventData.items = {};
+      currentUnsub = ()=>{};
+      renderEvent(lastEventData);
+    }
+    pushRecent(currentEventCode, (lastEventData && lastEventData.name) || t('defaultVoyage'), currentMode);
+  }
+
+  /* ===================== Écriture (locale + optimiste) ===================== */
+  function localPersist(){
+    const all = lsGet(LS.localEvents, {});
+    all[currentEventCode] = lastEventData;
+    lsSet(LS.localEvents, all);
+  }
+  function optimisticApply(mutator){
+    if(!lastEventData) return;
+    mutator(lastEventData);
+    renderEvent(lastEventData);
+  }
+  async function writePatch(id, patch){
+    patch = { ...patch, updatedAt:Date.now() };
+    if(currentMode==='firebase'){
+      const updates = {};
+      Object.keys(patch).forEach(k => updates[`items.${id}.${k}`] = patch[k]);
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), updates); }
+      catch(e){ toast(t('updateError', { msg:e.message })); }
+    } else {
+      if(lastEventData.items[id]) Object.assign(lastEventData.items[id], patch);
+      localPersist();
+    }
+  }
+  async function writeSet(item){
+    if(currentMode==='firebase'){
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), { [`items.${item.id}`]: item }); }
+      catch(e){ toast(t('addError', { msg:e.message })); }
+    } else { localPersist(); }
+  }
+  async function writeDelete(id){
+    if(currentMode==='firebase'){
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), { [`items.${id}`]: fsMod.deleteField() }); }
+      catch(e){ toast(t('deleteError', { msg:e.message })); }
+    } else { localPersist(); }
+  }
+  async function writeMeta(patch){
+    if(currentMode==='firebase'){
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), patch); }
+      catch(e){ toast(t('updateError', { msg:e.message })); }
+    } else { localPersist(); }
+  }
+
+  async function addItem(catKey, rawText){
+    const text = (rawText||'').trim();
+    if(!text) return;
+    const item = { id:uid(), text, category:catKey, state:'todo', order:Date.now(), updatedAt:Date.now() };
+    optimisticApply(d => { d.items[item.id] = item; });
+    await writeSet(item);
+  }
+  async function cycleItemState(id){
+    const cur = lastEventData.items[id]; if(!cur) return;
+    const ns = nextState(cur.state);
+    optimisticApply(d => { d.items[id].state = ns; });
+    await writePatch(id, { state:ns });
+  }
+  async function moveItemTo(id, cat){
+    openMenuId = null;
+    const cur = lastEventData.items[id]; if(!cur) return;
+    const resetState = cur.category === 'buy'; // leaving "To buy" always restarts as "to do"
+    const patch = resetState ? { category:cat, state:'todo' } : { category:cat };
+    optimisticApply(d => { Object.assign(d.items[id], patch); });
+    await writePatch(id, patch);
+  }
+  async function deleteItemById(id){
+    openMenuId = null;
+    optimisticApply(d => { delete d.items[id]; });
+    await writeDelete(id);
+  }
+  async function commitEdit(input){
+    const li = input.closest('.item-row');
+    if(!li){ return; }
+    const id = li.dataset.id;
+    const val = input.value.trim();
+    if(!val){ renderEvent(lastEventData); return; }
+    optimisticApply(d => { d.items[id].text = val; });
+    await writePatch(id, { text:val });
+  }
+  async function renameEvent(newName){
+    const val = newName.trim();
+    if(!val){ renderEvent(lastEventData); return; }
+    optimisticApply(d => { d.name = val; });
+    await writeMeta({ name: val });
+  }
+
+  /* ===================== Rendu de l'événement ===================== */
+  function sortedItems(data, cat){
+    const arr = Object.values(data.items||{}).filter(it => it.category===cat);
+    const rank = { todo:0, done:1, cancelled:2 };
+    arr.sort((a,b)=>{
+      if(rank[a.state]!==rank[b.state]) return rank[a.state]-rank[b.state];
+      if(a.state==='todo') return (a.order||0)-(b.order||0);
+      return (a.updatedAt||0)-(b.updatedAt||0);
+    });
+    return arr;
+  }
+
+  function itemRowHtml(it){
+    const stateIcon = it.state==='done' ? '✓' : (it.state==='cancelled' ? '✕' : '');
+    const others = CATEGORIES.filter(c => c.key!==it.category);
+    const menuOpen = openMenuId===it.id;
+    return `
+    <li class="item-row state-${it.state}" data-id="${it.id}">
+      <button class="state-btn" aria-label="${t('stateAria')}">${stateIcon}</button>
+      <span class="item-text" title="${t('renameTitle')}">${escapeHtml(it.text)}</span>
+      <button class="kebab-btn" aria-label="${t('optionsAria')}">⋮</button>
+      <div class="item-menu ${menuOpen ? '' : 'hidden'}">
+        <p class="menu-label">${t('moveTo')}</p>
+        <div class="menu-cats">
+          ${others.map(c=>`<button class="menu-move" data-cat="${c.key}">${c.code}</button>`).join('')}
+        </div>
+        <button class="menu-delete">${t('delete')}</button>
+      </div>
+    </li>`;
+  }
+
+  function renderEvent(data){
+    if(!data) return;
+    lastEventData = data;
+    $('#event-name-display').textContent = data.name || t('defaultVoyage');
+    $('#event-code-display').textContent = currentEventCode || '------';
+    $('#export-banner').classList.toggle('hidden', !(currentMode==='local' && fbReady));
+
+    const root = $('#categories-root');
+    root.innerHTML = CATEGORIES.map(cat=>{
+      const items = sortedItems(data, cat.key);
+      const total = items.length;
+      const done = items.filter(i=>i.state==='done').length;
+      const isOpen = openCats.has(cat.key);
+      const label = catLabel(cat.key);
+      return `
+      <div class="cat-section" data-cat="${cat.key}">
+        <button class="cat-header" data-cat="${cat.key}" style="--accent:${cat.color}">
+          <span class="stamp">${cat.code}</span>
+          <span class="cat-title">${escapeHtml(label)}</span>
+          <span class="cat-count">${done}/${total}</span>
+          <span class="chevron">${isOpen ? '⌃' : '⌄'}</span>
+        </button>
+        <div class="cat-body ${isOpen ? '' : 'hidden'}">
+          <ul class="item-list">
+            ${items.map(itemRowHtml).join('') || `<li class="empty-hint">${t('emptyHint')}</li>`}
+          </ul>
+          <div class="add-row">
+            <input class="add-input" placeholder="${t('addPlaceholder',{cat:label})}" autocomplete="off" />
+            <button class="add-btn" aria-label="+">＋</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    adjustOpenMenuPosition();
+  }
+
+  function adjustOpenMenuPosition(){
+    if(!openMenuId) return;
+    const menu = $('#categories-root').querySelector('.item-menu:not(.hidden)');
+    if(!menu) return;
+    // Reset then measure, so we always re-evaluate from a known "open downward" state.
+    menu.classList.remove('menu-up');
+    const rect = menu.getBoundingClientRect();
+    const margin = 10;
+    if(rect.bottom > window.innerHeight - margin){
+      menu.classList.add('menu-up');
+    }
+  }
+
+  function toggleCategory(key){
+    if(openCats.has(key)) openCats.delete(key); else openCats.add(key);
+    renderEvent(lastEventData);
+  }
+
+  function startEditItem(span){
+    const li = span.closest('.item-row');
+    const input = document.createElement('input');
+    input.className = 'edit-input';
+    input.value = span.textContent;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+  }
+
+  /* ===================== Délégation d'événements — catégories ===================== */
+  const categoriesRoot = $('#categories-root');
+
+  categoriesRoot.addEventListener('click', (e)=>{
+    const header = e.target.closest('.cat-header');
+    if(header){ toggleCategory(header.dataset.cat); return; }
+
+    const stateBtn = e.target.closest('.state-btn');
+    if(stateBtn){ cycleItemState(stateBtn.closest('.item-row').dataset.id); return; }
+
+    const kebab = e.target.closest('.kebab-btn');
+    if(kebab){
+      const row = kebab.closest('.item-row');
+      const id = row.dataset.id;
+      openMenuId = (openMenuId===id) ? null : id;
+      renderEvent(lastEventData);
+      return;
+    }
+
+    const moveBtn = e.target.closest('.menu-move');
+    if(moveBtn){ moveItemTo(moveBtn.closest('.item-row').dataset.id, moveBtn.dataset.cat); return; }
+
+    const delBtn = e.target.closest('.menu-delete');
+    if(delBtn){
+      const row = delBtn.closest('.item-row');
+      const label = row.querySelector('.item-text') ? row.querySelector('.item-text').textContent : '';
+      if(confirm(t('deleteConfirm', { name:label }))) deleteItemById(row.dataset.id);
+      return;
+    }
+
+    const addBtn = e.target.closest('.add-btn');
+    if(addBtn){
+      const section = addBtn.closest('.cat-section');
+      const input = section.querySelector('.add-input');
+      addItem(section.dataset.cat, input.value);
+      input.value = '';
+      input.focus();
+      return;
+    }
+
+    const txt = e.target.closest('.item-text');
+    if(txt){ startEditItem(txt); return; }
+  });
+
+  categoriesRoot.addEventListener('keydown', (e)=>{
+    if(e.target.classList.contains('add-input') && e.key==='Enter'){
+      const section = e.target.closest('.cat-section');
+      addItem(section.dataset.cat, e.target.value);
+      e.target.value = '';
+    }
+    if(e.target.classList.contains('edit-input')){
+      if(e.key==='Enter') commitEdit(e.target);
+      if(e.key==='Escape') renderEvent(lastEventData);
+    }
+  });
+
+  categoriesRoot.addEventListener('focusout', (e)=>{
+    if(e.target.classList.contains('edit-input')) commitEdit(e.target);
+  });
+
+  /* ===================== Gestion de l'écran d'accueil ===================== */
+  $('#btn-join').addEventListener('click', handleJoin);
+  $('#input-join-code').addEventListener('keydown', e=>{ if(e.key==='Enter') handleJoin(); });
+  $('#btn-create').addEventListener('click', handleCreate);
+  $('#recent-list').addEventListener('click', (e)=>{
+    const item = e.target.closest('.recent-item');
+    if(!item) return;
+    const code = item.dataset.code, mode = item.dataset.mode;
+    if(mode==='firebase' && !fbReady){ toast(t('connectToJoin')); return; }
+    codeExists(code, mode).then(exists=>{
+      if(exists) enterEvent(code, mode);
+      else toast(t('recentUnavailable'));
+    });
+  });
+
+  /* ===================== Écran événement : actions ===================== */
+  $('#btn-leave').addEventListener('click', goHome);
+  $('#btn-copy-code').addEventListener('click', ()=>{
+    if(!currentEventCode) return;
+    navigator.clipboard?.writeText(currentEventCode).then(()=> toast(t('codeCopied')))
+      .catch(()=> toast(currentEventCode));
+  });
+  $('#event-name-display').addEventListener('click', (e)=>{
+    const h1 = e.currentTarget;
+    const input = document.createElement('input');
+    input.value = h1.textContent;
+    input.className = 'edit-input';
+    input.style.fontSize = '16px';
+    h1.replaceWith(input);
+    input.focus(); input.select();
+    const commit = ()=>{
+      renameEvent(input.value);
+      // renameEvent triggers renderEvent via optimisticApply which rebuilds #event-name-display
+    };
+    input.addEventListener('keydown', ev=>{
+      if(ev.key==='Enter') input.blur();
+      if(ev.key==='Escape'){ renderEvent(lastEventData); }
+    });
+    input.addEventListener('focusout', commit, { once:true });
+  });
+
+  $('#btn-export').addEventListener('click', async ()=>{
+    if(!fbReady){ toast(t('exportNeedsFirebase')); return; }
+    const originalCode = currentEventCode;
+    if(!confirm(t('exportConfirm', { code: originalCode }))) return;
+    try{
+      let code = originalCode;
+      const snap = await fsMod.getDoc(fsMod.doc(fbDb,'events',code));
+      if(snap.exists()){
+        do{ code = genCode(); } while(await codeExists(code,'firebase'));
+      }
+      await fsMod.setDoc(fsMod.doc(fbDb,'events',code), lastEventData);
+      currentEventCode = code;
+      currentMode = 'firebase';
+      lsSet(LS.current, { code, mode:'firebase' });
+      pushRecent(code, lastEventData.name, 'firebase');
+      startListening();
+      toast(code===originalCode ? t('exportSuccess') : t('exportSuccessNewCode', { code }));
+    } catch(e){
+      toast(t('exportFail', { msg:e.message }));
+    }
+  });
+
+  /* ===================== Paramètres Firebase (modal) ===================== */
+  function openSettings(){
+    const cfg = lsGet(LS.config, {});
+    $('#cfg-apiKey').value = cfg.apiKey || '';
+    $('#cfg-authDomain').value = cfg.authDomain || '';
+    $('#cfg-projectId').value = cfg.projectId || '';
+    $('#cfg-storageBucket').value = cfg.storageBucket || '';
+    $('#cfg-messagingSenderId').value = cfg.messagingSenderId || '';
+    $('#cfg-appId').value = cfg.appId || '';
+    updateSettingsStatus();
+    $('#modal-settings').classList.remove('hidden');
+  }
+  function closeSettings(){ $('#modal-settings').classList.add('hidden'); }
+  function updateSettingsStatus(msg, kind){
+    const el = $('#settings-status');
+    if(msg){ el.textContent = msg; el.className = 'status-row' + (kind ? ' '+kind : ''); return; }
+    if(fbReady){ el.textContent = t('statusConnected'); el.className = 'status-row connected'; }
+    else { el.textContent = t('statusLocal'); el.className = 'status-row'; }
+  }
+  $('#btn-settings-home').addEventListener('click', openSettings);
+  $('#btn-settings').addEventListener('click', openSettings);
+  $('#btn-close-settings').addEventListener('click', closeSettings);
+  $('#modal-settings').addEventListener('click', (e)=>{ if(e.target.id==='modal-settings') closeSettings(); });
+
+  $('#btn-save-config').addEventListener('click', async ()=>{
+    const cfg = {
+      apiKey: $('#cfg-apiKey').value.trim(),
+      authDomain: $('#cfg-authDomain').value.trim(),
+      projectId: $('#cfg-projectId').value.trim(),
+      storageBucket: $('#cfg-storageBucket').value.trim(),
+      messagingSenderId: $('#cfg-messagingSenderId').value.trim(),
+      appId: $('#cfg-appId').value.trim(),
+    };
+    const hasAny = Object.values(cfg).some(v=>v);
+    if(!hasAny){
+      localStorage.removeItem(LS.config);
+      fbReady=false; fbApp=null; fbDb=null; fsMod=null;
+      updateSettingsStatus(t('statusLocal'), '');
+      updateModeIndicator();
+      toast(t('localModeToast'));
+      return;
+    }
+    if(!cfg.apiKey || !cfg.projectId){
+      updateSettingsStatus(t('statusMinFields'), 'error');
+      return;
+    }
+    updateSettingsStatus(t('statusConnecting'), '');
+    try{
+      await connectFirebase(cfg);
+      lsSet(LS.config, cfg);
+      updateSettingsStatus(t('statusConnected'), 'connected');
+      updateModeIndicator();
+      toast(t('firebaseConnected'));
+    } catch(e){
+      fbReady = false;
+      updateSettingsStatus(t('statusConnectFail', { msg:e.message }), 'error');
+      updateModeIndicator();
+    }
+  });
+
+  $('#btn-clear-config').addEventListener('click', ()=>{
+    localStorage.removeItem(LS.config);
+    fbReady=false; fbApp=null; fbDb=null; fsMod=null;
+    $('#cfg-apiKey').value = $('#cfg-authDomain').value = $('#cfg-projectId').value = '';
+    $('#cfg-storageBucket').value = $('#cfg-messagingSenderId').value = $('#cfg-appId').value = '';
+    updateSettingsStatus(t('statusLocal'), '');
+    updateModeIndicator();
+    toast(t('configCleared'));
+  });
+
+  /* ===================== Langue / thème : contrôles ===================== */
+  $('#lang-en').addEventListener('click', ()=> setLang('en'));
+  $('#lang-fr').addEventListener('click', ()=> setLang('fr'));
+  $('#theme-toggle').addEventListener('click', ()=> setTheme(currentTheme==='dark' ? 'light' : 'dark'));
+
+  /* ===================== Service worker (PWA) ===================== */
+  function registerServiceWorker(){
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', ()=>{
+        navigator.serviceWorker.register('./service-worker.js').catch(e=> console.warn('Service worker registration failed', e));
+      });
+    }
+  }
+
+  /* ===================== Initialisation ===================== */
+  async function init(){
+    document.documentElement.setAttribute('lang', currentLang);
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateLangSwitchUI();
+    updateThemeSwitchUI();
+    applyStaticI18n();
+
+    registerServiceWorker();
+    const cfg = lsGet(LS.config, null);
+    if(cfg){
+      try{ await connectFirebase(cfg); }
+      catch(e){ console.warn(e); toast(t('firebaseFailToast')); }
+    }
+    updateModeIndicator();
+
+    const last = lsGet(LS.current, null);
+    if(last && last.code){
+      if(last.mode==='firebase' && !fbReady){
+        lsSet(LS.current, null);
+        renderHome();
+      } else {
+        try{
+          const exists = await codeExists(last.code, last.mode);
+          if(exists) enterEvent(last.code, last.mode);
+          else { lsSet(LS.current, null); renderHome(); }
+        } catch(e){ renderHome(); }
+      }
+    } else {
+      renderHome();
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>
