@@ -401,6 +401,19 @@
     padding:12px; font-size:11.5px; overflow-x:auto; color:var(--ink-dim); margin-top:10px; line-height:1.5;
   }
 
+  .danger-zone{
+    margin-top:20px; padding-top:16px; border-top:1px dashed var(--danger);
+  }
+  .danger-title{
+    font-size:12px; text-transform:uppercase; letter-spacing:.08em; font-weight:800;
+    color:var(--danger); margin:0 0 6px;
+  }
+  .btn-danger-outline{
+    width:100%; background:transparent; border:1px solid var(--danger); color:var(--danger);
+    border-radius:var(--radius-sm); padding:12px; font-size:14px; font-weight:700; min-height:44px;
+  }
+  .btn-danger-outline:active{ background:rgba(221,90,90,.12); }
+
   /* ---------- Toasts ---------- */
   #toast-container{
     position:fixed; left:0; right:0; bottom:calc(18px + env(safe-area-inset-bottom));
@@ -525,6 +538,11 @@ service cloud.firestore {
 }</pre>
         <p style="margin-top:8px;" data-i18n="rulesNote">Also enable "Anonymous" sign-in in Firebase Authentication so these rules work.</p>
       </details>
+      <div id="danger-zone" class="danger-zone hidden">
+        <p class="danger-title" data-i18n="dangerZoneTitle">Danger zone</p>
+        <p class="hint" data-i18n="dangerZoneHint">Permanently delete the current event and all of its items, for every participant. This cannot be undone.</p>
+        <button id="btn-delete-event" class="btn btn-danger-outline" data-i18n="deleteEventBtn">🗑 Delete this event</button>
+      </div>
     </div>
   </div>
 
@@ -544,6 +562,7 @@ service cloud.firestore {
 
   const LS = {
     config:'ct_firebaseConfig',
+    configInitialized:'ct_configInitialized',
     localEvents:'ct_localEvents',
     recents:'ct_recents',
     current:'ct_currentEvent',
@@ -552,6 +571,18 @@ service cloud.firestore {
   };
 
   const FIREBASE_VERSION = '10.12.2';
+
+  // Pre-filled Firebase project used the first time the app runs on a device,
+  // so it works out of the box without requiring manual setup.
+  // Users can still change or clear it any time in ⚙️ Settings.
+  const DEFAULT_FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDfMHjT6mZ_IBPbvW0d8bYBMLwGvOdZK5k",
+    authDomain: "travelchecklist-7e4ba.firebaseapp.com",
+    projectId: "travelchecklist-7e4ba",
+    storageBucket: "travelchecklist-7e4ba.firebasestorage.app",
+    messagingSenderId: "481346152426",
+    appId: "1:481346152426:web:db511979a2c7d13f1cf493",
+  };
 
   /* ===================== Internationalisation ===================== */
   const I18N = {
@@ -596,6 +627,14 @@ service cloud.firestore {
       statusConnectFail:"Connection failed: {msg}",
       rulesSummary:"Recommended Firestore rules",
       rulesNote:'Also enable "Anonymous" sign-in in Firebase Authentication so these rules work.',
+      dangerZoneTitle:"Danger zone",
+      dangerZoneHint:"Permanently delete the current event and all of its items, for every participant. This cannot be undone.",
+      deleteEventBtn:"🗑 Delete this event",
+      deleteEventConfirm1:'Delete "{name}" (code {code}) permanently for everyone? This cannot be undone.',
+      deleteEventConfirm2:"Type the event code {code} to confirm deletion:",
+      deleteEventCodeMismatch:"Code didn't match — deletion cancelled.",
+      deleteEventSuccess:"Event deleted.",
+      deleteEventError:"Error deleting event: {msg}",
       firebaseConnected:"Connected to Firebase ✅",
       firebaseFailToast:"Could not connect to Firebase, local mode active.",
       localModeToast:"Local mode enabled.",
@@ -672,6 +711,14 @@ service cloud.firestore {
       statusConnectFail:"Échec de connexion : {msg}",
       rulesSummary:"Règles Firestore recommandées",
       rulesNote:'Activez aussi la connexion "Anonyme" dans Firebase Authentication pour que ces règles fonctionnent.',
+      dangerZoneTitle:"Zone dangereuse",
+      dangerZoneHint:"Supprime définitivement l'événement en cours et tous ses éléments, pour tous les participants. Action irréversible.",
+      deleteEventBtn:"🗑 Supprimer cet événement",
+      deleteEventConfirm1:'Supprimer définitivement « {name} » (code {code}) pour tout le monde ? Cette action est irréversible.',
+      deleteEventConfirm2:"Tapez le code de l'événement {code} pour confirmer la suppression :",
+      deleteEventCodeMismatch:"Le code ne correspond pas — suppression annulée.",
+      deleteEventSuccess:"Événement supprimé.",
+      deleteEventError:"Erreur lors de la suppression : {msg}",
       firebaseConnected:"Connecté à Firebase ✅",
       firebaseFailToast:"Connexion Firebase impossible, mode local activé.",
       localModeToast:"Mode local activé.",
@@ -934,6 +981,7 @@ service cloud.firestore {
         lastEventData = snap.data();
         if(!lastEventData.items) lastEventData.items = {};
         renderEvent(lastEventData);
+        pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
       }, err=>{
         console.error(err);
         toast(t('syncError'));
@@ -945,8 +993,8 @@ service cloud.firestore {
       if(!lastEventData.items) lastEventData.items = {};
       currentUnsub = ()=>{};
       renderEvent(lastEventData);
+      pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
     }
-    pushRecent(currentEventCode, (lastEventData && lastEventData.name) || t('defaultVoyage'), currentMode);
   }
 
   /* ===================== Écriture (locale + optimiste) ===================== */
@@ -1252,6 +1300,42 @@ service cloud.firestore {
     }
   });
 
+  $('#btn-delete-event').addEventListener('click', handleDeleteEvent);
+
+  async function handleDeleteEvent(){
+    if(!currentEventCode) return;
+    const code = currentEventCode;
+    const name = (lastEventData && lastEventData.name) || t('defaultVoyage');
+
+    // 1st confirmation: clear intent check.
+    if(!confirm(t('deleteEventConfirm1', { name, code }))) return;
+
+    // 2nd confirmation: must type the exact event code, to avoid accidental double-taps.
+    const typed = prompt(t('deleteEventConfirm2', { code }));
+    if(typed === null) return;
+    if(typed.trim().toUpperCase() !== code.toUpperCase()){
+      toast(t('deleteEventCodeMismatch'));
+      return;
+    }
+
+    try{
+      if(currentMode==='firebase'){
+        await fsMod.deleteDoc(fsMod.doc(fbDb,'events',code));
+      } else {
+        const all = lsGet(LS.localEvents, {});
+        delete all[code];
+        lsSet(LS.localEvents, all);
+      }
+      const list = lsGet(LS.recents, []).filter(r=>r.code!==code);
+      lsSet(LS.recents, list);
+      closeSettings();
+      toast(t('deleteEventSuccess'));
+      goHome();
+    } catch(e){
+      toast(t('deleteEventError', { msg:e.message }));
+    }
+  }
+
   /* ===================== Paramètres Firebase (modal) ===================== */
   function openSettings(){
     const cfg = lsGet(LS.config, {});
@@ -1262,6 +1346,7 @@ service cloud.firestore {
     $('#cfg-messagingSenderId').value = cfg.messagingSenderId || '';
     $('#cfg-appId').value = cfg.appId || '';
     updateSettingsStatus();
+    $('#danger-zone').classList.toggle('hidden', !currentEventCode);
     $('#modal-settings').classList.remove('hidden');
   }
   function closeSettings(){ $('#modal-settings').classList.add('hidden'); }
@@ -1345,7 +1430,12 @@ service cloud.firestore {
     applyStaticI18n();
 
     registerServiceWorker();
-    const cfg = lsGet(LS.config, null);
+    let cfg = lsGet(LS.config, null);
+    if(!cfg && !lsGet(LS.configInitialized, false)){
+      cfg = DEFAULT_FIREBASE_CONFIG;
+      lsSet(LS.config, cfg);
+    }
+    lsSet(LS.configInitialized, true);
     if(cfg){
       try{ await connectFirebase(cfg); }
       catch(e){ console.warn(e); toast(t('firebaseFailToast')); }
