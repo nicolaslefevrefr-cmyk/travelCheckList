@@ -137,6 +137,8 @@
   }
   .lang-switch button.active{ background:var(--teal); color:#0B1F1A; }
 
+  .top-bar .icon-btn{ width:32px; height:32px; font-size:14px; margin-right:auto; }
+
   .theme-switch{
     position:relative;
     width:52px; height:30px; border-radius:999px;
@@ -401,6 +403,8 @@
     padding:12px; font-size:11.5px; overflow-x:auto; color:var(--ink-dim); margin-top:10px; line-height:1.5;
   }
 
+  .rule-list-install{ margin:10px 0 16px; padding-left:20px; font-size:13px; color:var(--ink-dim); line-height:1.7; }
+
   .danger-zone{
     margin-top:20px; padding-top:16px; border-top:1px dashed var(--danger);
   }
@@ -436,6 +440,7 @@
 <body>
   <div class="top-bar">
     <div class="top-bar-inner">
+      <button id="btn-install" class="icon-btn hidden" aria-label="Install app" data-i18n-aria="installAria">📲</button>
       <div class="lang-switch" role="group" aria-label="Language">
         <button id="lang-en" data-lang="en" class="active">EN</button>
         <button id="lang-fr" data-lang="fr">FR</button>
@@ -546,6 +551,28 @@ service cloud.firestore {
     </div>
   </div>
 
+  <!-- ============ INSTALL HELP MODAL ============ -->
+  <div id="modal-install" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="installHelpTitle">Install this app</h2>
+        <button id="btn-close-install" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="install-ios-steps">
+        <p class="hint" data-i18n="installHelpIOSIntro">On iPhone / iPad, install it from Safari's Share menu:</p>
+        <ul class="rule-list-install">
+          <li data-i18n="installHelpIOS1">1. Tap the Share icon (⬆️ square) in Safari's toolbar.</li>
+          <li data-i18n="installHelpIOS2">2. Scroll down and tap "Add to Home Screen".</li>
+          <li data-i18n="installHelpIOS3">3. Tap "Add" — the app icon now opens full-screen, like a native app.</li>
+        </ul>
+      </div>
+      <div id="install-generic-steps">
+        <p class="hint" data-i18n="installHelpGeneric">Look for an install icon in your browser's address bar, or open your browser menu and choose "Install app" / "Add to Home screen".</p>
+      </div>
+      <button class="btn btn-primary" id="btn-close-install-2" data-i18n="installHelpClose">Got it</button>
+    </div>
+  </div>
+
   <div id="toast-container" aria-live="polite"></div>
 
 <script type="module">
@@ -635,6 +662,16 @@ service cloud.firestore {
       deleteEventCodeMismatch:"Code didn't match — deletion cancelled.",
       deleteEventSuccess:"Event deleted.",
       deleteEventError:"Error deleting event: {msg}",
+      installAria:"Install app",
+      installHelpTitle:"Install this app",
+      installHelpIOSIntro:"On iPhone / iPad, install it from Safari's Share menu:",
+      installHelpIOS1:"1. Tap the Share icon (⬆️ square) in Safari's toolbar.",
+      installHelpIOS2:'2. Scroll down and tap "Add to Home Screen".',
+      installHelpIOS3:'3. Tap "Add" — the app icon now opens full-screen, like a native app.',
+      installHelpGeneric:'Look for an install icon in your browser\'s address bar, or open your browser menu and choose "Install app" / "Add to Home screen".',
+      installHelpClose:"Got it",
+      installHintToast:"📲 This app can be installed on your device — tap the icon in the top bar!",
+      installedToast:"App installed! 🎉",
       firebaseConnected:"Connected to Firebase ✅",
       firebaseFailToast:"Could not connect to Firebase, local mode active.",
       localModeToast:"Local mode enabled.",
@@ -719,6 +756,16 @@ service cloud.firestore {
       deleteEventCodeMismatch:"Le code ne correspond pas — suppression annulée.",
       deleteEventSuccess:"Événement supprimé.",
       deleteEventError:"Erreur lors de la suppression : {msg}",
+      installAria:"Installer l'application",
+      installHelpTitle:"Installer cette application",
+      installHelpIOSIntro:"Sur iPhone / iPad, installez-la depuis le menu Partager de Safari :",
+      installHelpIOS1:"1. Touchez l'icône Partager (⬆️ carré) dans la barre d'outils de Safari.",
+      installHelpIOS2:"2. Faites défiler et touchez « Sur l'écran d'accueil ».",
+      installHelpIOS3:"3. Touchez « Ajouter » — l'icône ouvre désormais l'app en plein écran, comme une app native.",
+      installHelpGeneric:"Cherchez une icône d'installation dans la barre d'adresse de votre navigateur, ou ouvrez le menu du navigateur et choisissez « Installer l'application » / « Ajouter à l'écran d'accueil ».",
+      installHelpClose:"Compris",
+      installHintToast:"📲 Cette application peut être installée sur votre appareil — touchez l'icône dans la barre du haut !",
+      installedToast:"Application installée ! 🎉",
       firebaseConnected:"Connecté à Firebase ✅",
       firebaseFailToast:"Connexion Firebase impossible, mode local activé.",
       localModeToast:"Mode local activé.",
@@ -1421,6 +1468,63 @@ service cloud.firestore {
     }
   }
 
+  /* ===================== Install as app (PWA) ===================== */
+  const LS_INSTALL_HINT = 'ct_install_hint_shown';
+  let deferredInstallPrompt = null;
+
+  function isStandaloneDisplay(){
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isIOSDevice(){
+    const ua = navigator.userAgent || '';
+    const iOS = /iPad|iPhone|iPod/.test(ua);
+    const iPadOSDesktopMode = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return iOS || iPadOSDesktopMode;
+  }
+  function showInstallButton(){
+    if(isStandaloneDisplay()) return;
+    $('#btn-install').classList.remove('hidden');
+    if(!lsGet(LS_INSTALL_HINT, false)){
+      lsSet(LS_INSTALL_HINT, true);
+      toast(t('installHintToast'));
+    }
+  }
+  function openInstallHelp(){
+    $('#install-ios-steps').classList.toggle('hidden', !isIOSDevice());
+    $('#install-generic-steps').classList.toggle('hidden', isIOSDevice());
+    $('#modal-install').classList.remove('hidden');
+  }
+  function initInstallPrompt(){
+    if(isStandaloneDisplay()) return; // already installed, nothing to offer
+    window.addEventListener('beforeinstallprompt', (e)=>{
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      showInstallButton();
+    });
+    window.addEventListener('appinstalled', ()=>{
+      deferredInstallPrompt = null;
+      $('#btn-install').classList.add('hidden');
+      toast(t('installedToast'));
+    });
+    if(isIOSDevice()){
+      // iOS never fires beforeinstallprompt — offer manual instructions directly.
+      showInstallButton();
+    }
+  }
+  $('#btn-install').addEventListener('click', async ()=>{
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      try{ await deferredInstallPrompt.userChoice; }catch(e){}
+      deferredInstallPrompt = null;
+      $('#btn-install').classList.add('hidden');
+    } else {
+      openInstallHelp();
+    }
+  });
+  $('#btn-close-install').addEventListener('click', ()=> $('#modal-install').classList.add('hidden'));
+  $('#btn-close-install-2').addEventListener('click', ()=> $('#modal-install').classList.add('hidden'));
+  $('#modal-install').addEventListener('click', (e)=>{ if(e.target.id==='modal-install') $('#modal-install').classList.add('hidden'); });
+
   /* ===================== Initialisation ===================== */
   async function init(){
     document.documentElement.setAttribute('lang', currentLang);
@@ -1430,6 +1534,7 @@ service cloud.firestore {
     applyStaticI18n();
 
     registerServiceWorker();
+    initInstallPrompt();
     let cfg = lsGet(LS.config, null);
     if(!cfg && !lsGet(LS.configInitialized, false)){
       cfg = DEFAULT_FIREBASE_CONFIG;
