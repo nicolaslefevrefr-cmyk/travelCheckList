@@ -277,24 +277,22 @@
     overflow:visible;
     box-shadow:var(--shadow);
   }
+  .cat-header-row{ display:flex; align-items:stretch; }
   .cat-header{
-    width:100%; background:none; border:none;
+    flex:1; min-width:0; background:none; border:none;
     display:flex; align-items:center; gap:10px;
-    padding:14px 14px;
+    padding:14px 4px 14px 14px;
     text-align:left;
   }
-  .stamp{
-    flex:0 0 auto;
-    background:var(--accent);
-    color:#0B1F1A;
-    font-family:monospace;
-    font-weight:800;
-    font-size:11px;
-    letter-spacing:.06em;
-    border-radius:999px;
-    padding:5px 9px;
+  .cat-kebab{
+    flex:0 0 auto; width:42px; background:none; border:none;
+    color:var(--ink-faint); font-size:18px;
   }
-  .cat-title{ flex:1; font-size:15px; font-weight:700; color:var(--ink); }
+  .cat-dot{
+    flex:0 0 auto; width:12px; height:12px; border-radius:50%;
+    box-shadow:0 0 0 3px rgba(0,0,0,.06);
+  }
+  .cat-title{ flex:1; min-width:0; font-size:15px; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cat-count{ font-size:12.5px; color:var(--ink-faint); font-family:monospace; }
   .chevron{ color:var(--ink-faint); font-size:14px; width:14px; text-align:center; }
 
@@ -302,6 +300,19 @@
     border-top:1px dashed var(--divider);
     padding:6px 10px 12px;
   }
+
+  .add-category-btn{
+    width:100%; background:none; border:2px dashed var(--divider);
+    border-radius:var(--radius-lg); color:var(--ink-dim);
+    padding:14px; font-size:14px; font-weight:700; margin-bottom:24px; min-height:48px;
+  }
+  .add-category-btn:active{ border-color:var(--teal); color:var(--teal); }
+
+  .color-swatches{ display:flex; flex-wrap:wrap; gap:10px; margin:8px 0 4px; }
+  .swatch{
+    width:32px; height:32px; border-radius:50%; border:2px solid transparent; padding:0;
+  }
+  .swatch.selected{ border-color:var(--ink); box-shadow:0 0 0 2px var(--bg-alt) inset; }
 
   .item-list{ list-style:none; margin:0; padding:0; }
   .empty-hint{ color:var(--ink-faint); font-size:13px; padding:12px 6px; font-style:italic; }
@@ -353,8 +364,10 @@
   .menu-cats{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
   .menu-move{
     background:var(--surface-2); border:1px solid var(--divider); color:var(--ink);
-    border-radius:999px; padding:6px 10px; font-size:12px; font-weight:700; font-family:monospace;
+    border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:600;
+    display:inline-flex; align-items:center; gap:6px; max-width:100%;
   }
+  .menu-move .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
   .menu-move:active{ background:var(--teal); color:#0B1F1A; }
   .menu-delete{
     width:100%; background:none; border:1px solid var(--danger); color:var(--danger);
@@ -396,6 +409,8 @@
   .status-row.error{ color:var(--danger); }
   .modal-actions{ display:flex; gap:10px; margin-top:16px; }
   .modal-actions .btn{ flex:1; }
+  .btn-row{ display:flex; gap:10px; }
+  .btn-row .btn{ flex:1; }
   .rules-help{ margin-top:18px; color:var(--ink-dim); font-size:13px; }
   .rules-help summary{ cursor:pointer; color:var(--teal); font-weight:600; }
   .rules-help pre{
@@ -551,6 +566,27 @@ service cloud.firestore {
     </div>
   </div>
 
+  <!-- ============ CATEGORY MODAL (add / edit) ============ -->
+  <div id="modal-category" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="category-modal-title">Add category</h2>
+        <button id="btn-close-category" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="field-col">
+        <input id="cat-name-input" placeholder="Category name" data-i18n-placeholder="categoryNamePlaceholder" autocomplete="off" maxlength="40" />
+        <p class="menu-label" data-i18n="categoryColorLabel" style="margin-top:6px;">Color</p>
+        <div id="cat-color-swatches" class="color-swatches"></div>
+      </div>
+      <div id="cat-reorder-row" class="btn-row hidden" style="margin-top:14px;">
+        <button id="btn-cat-move-up" class="btn btn-ghost">⬆ <span data-i18n="moveUp">Move up</span></button>
+        <button id="btn-cat-move-down" class="btn btn-ghost">⬇ <span data-i18n="moveDown">Move down</span></button>
+      </div>
+      <button class="btn btn-primary" id="btn-save-category" data-i18n="saveCategory" style="margin-top:14px;">Save</button>
+      <button class="btn btn-danger-outline hidden" id="btn-delete-category" data-i18n="deleteCategoryBtn" style="margin-top:8px;">🗑 Delete category</button>
+    </div>
+  </div>
+
   <!-- ============ INSTALL HELP MODAL ============ -->
   <div id="modal-install" class="modal hidden">
     <div class="modal-card">
@@ -577,15 +613,25 @@ service cloud.firestore {
 
 <script type="module">
   /* ===================== Constantes ===================== */
-  // The 3-4 letter "stamp" codes are visual badges only (language-neutral),
-  // the actual category label is translated via I18N.categories.
-  const CATEGORIES = [
-    { key:'buy',    code:'BUY',  color:'var(--c-buy)' },
-    { key:'take',   code:'PACK', color:'var(--c-take)' },
-    { key:'before', code:'PRE',  color:'var(--c-before)' },
-    { key:'during', code:'TRIP', color:'var(--c-during)' },
-    { key:'after',  code:'POST', color:'var(--c-after)' },
-  ];
+  // Categories are now per-event data (stored in data.categories), not a fixed
+  // app-wide list — users can add/rename/recolor/reorder/delete them freely.
+  // This palette is offered when creating or recoloring a category.
+  const CATEGORY_PALETTE = ['#4FA98C','#E0A458','#9B87C4','#5C93B0','#D97B63','#6FA8DC','#E27DBA','#8FBF5A','#F2C94C','#C97AC9'];
+
+  // Used (a) to seed a brand-new event, and (b) to silently migrate older
+  // events created before custom categories existed (they have no
+  // `categories` field yet) — same fixed ids as before, so existing items'
+  // `category` value keeps matching and nothing appears to move.
+  function buildDefaultCategories(lang){
+    const L = (I18N[lang] || I18N.en).categories;
+    return [
+      { id:'buy',    name:L.buy,    color:'#4FA98C' },
+      { id:'take',   name:L.take,   color:'#E0A458' },
+      { id:'before', name:L.before, color:'#9B87C4' },
+      { id:'during', name:L.during, color:'#5C93B0' },
+      { id:'after',  name:L.after,  color:'#D97B63' },
+    ];
+  }
 
   const LS = {
     config:'ct_firebaseConfig',
@@ -672,6 +718,22 @@ service cloud.firestore {
       installHelpClose:"Got it",
       installHintToast:"📲 This app can be installed on your device — tap the icon in the top bar!",
       installedToast:"App installed! 🎉",
+      addCategoryTitle:"Add category",
+      editCategoryTitle:"Edit category",
+      categoryNamePlaceholder:"Category name",
+      categoryColorLabel:"Color",
+      addCategoryBtn:"Add category",
+      saveCategory:"Save",
+      deleteCategoryBtn:"🗑 Delete category",
+      moveUp:"Move up",
+      moveDown:"Move down",
+      categoryNameRequired:"Please enter a category name.",
+      cannotDeleteLastCategory:"You need at least one category — can't delete the last one.",
+      deleteCategoryConfirm:'Delete the "{name}" category?',
+      deleteCategoryConfirmWithItems:'Delete the "{name}" category and its {count} item(s)? This cannot be undone.',
+      categoryAddedToast:'Category "{name}" added.',
+      categoryDeletedToast:'Category "{name}" deleted.',
+      categoryOptionsAria:"Category options",
       firebaseConnected:"Connected to Firebase ✅",
       firebaseFailToast:"Could not connect to Firebase, local mode active.",
       localModeToast:"Local mode enabled.",
@@ -766,6 +828,22 @@ service cloud.firestore {
       installHelpClose:"Compris",
       installHintToast:"📲 Cette application peut être installée sur votre appareil — touchez l'icône dans la barre du haut !",
       installedToast:"Application installée ! 🎉",
+      addCategoryTitle:"Ajouter une catégorie",
+      editCategoryTitle:"Modifier la catégorie",
+      categoryNamePlaceholder:"Nom de la catégorie",
+      categoryColorLabel:"Couleur",
+      addCategoryBtn:"Ajouter une catégorie",
+      saveCategory:"Enregistrer",
+      deleteCategoryBtn:"🗑 Supprimer la catégorie",
+      moveUp:"Monter",
+      moveDown:"Descendre",
+      categoryNameRequired:"Merci de saisir un nom de catégorie.",
+      cannotDeleteLastCategory:"Il faut au moins une catégorie — impossible de supprimer la dernière.",
+      deleteCategoryConfirm:'Supprimer la catégorie « {name} » ?',
+      deleteCategoryConfirmWithItems:'Supprimer la catégorie « {name} » et ses {count} élément(s) ? Action irréversible.',
+      categoryAddedToast:'Catégorie « {name} » ajoutée.',
+      categoryDeletedToast:'Catégorie « {name} » supprimée.',
+      categoryOptionsAria:"Options de la catégorie",
       firebaseConnected:"Connecté à Firebase ✅",
       firebaseFailToast:"Connexion Firebase impossible, mode local activé.",
       localModeToast:"Mode local activé.",
@@ -836,7 +914,7 @@ service cloud.firestore {
   let currentEventCode=null, currentMode=null; // mode: 'local' | 'firebase'
   let currentUnsub=null;
   let lastEventData=null;
-  let openCats = new Set(CATEGORIES.map(c=>c.key));
+  let openCats = new Set();
   let openMenuId=null;
   let currentLang = lsGet(LS.lang, 'en');
   let currentTheme = lsGet(LS.theme, 'light');
@@ -847,10 +925,6 @@ service cloud.firestore {
     let str = dict[key] !== undefined ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key);
     if(vars){ Object.keys(vars).forEach(k => { str = str.replace('{'+k+'}', vars[k]); }); }
     return str;
-  }
-  function catLabel(key){
-    const dict = I18N[currentLang] || I18N.en;
-    return (dict.categories && dict.categories[key]) || (I18N.en.categories[key]) || key;
   }
   function applyStaticI18n(){
     document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
@@ -985,7 +1059,7 @@ service cloud.firestore {
           items[id] = { id, text:s.text, category:s.category, state:'todo', order:Date.now()+i, updatedAt:Date.now() };
         });
       }
-      const data = { name, items, createdAt:Date.now() };
+      const data = { name, items, categories: buildDefaultCategories(currentLang), createdAt:Date.now() };
       if(mode==='firebase'){
         await fsMod.setDoc(fsMod.doc(fbDb,'events',code), data);
       } else {
@@ -1002,6 +1076,8 @@ service cloud.firestore {
   function enterEvent(code, mode){
     currentEventCode = code;
     currentMode = mode;
+    openCats = new Set(); // every event opens fully collapsed
+    openMenuId = null;
     lsSet(LS.current, { code, mode });
     showScreen('event');
     startListening();
@@ -1018,6 +1094,18 @@ service cloud.firestore {
     renderHome();
   }
 
+  // Older events created before custom categories existed have no
+  // `categories` field — silently give them the classic 5 categories
+  // (same fixed ids items already use) the first time they're opened.
+  // Returns true if a migration was performed (caller should persist it).
+  function ensureCategories(data){
+    if(!Array.isArray(data.categories) || data.categories.length===0){
+      data.categories = buildDefaultCategories(currentLang);
+      return true;
+    }
+    return false;
+  }
+
   /* ===================== Écoute / synchronisation ===================== */
   function startListening(){
     if(currentUnsub) currentUnsub();
@@ -1027,8 +1115,10 @@ service cloud.firestore {
         if(!snap.exists()){ toast(t('eventDeletedToast')); goHome(); return; }
         lastEventData = snap.data();
         if(!lastEventData.items) lastEventData.items = {};
+        const migrated = ensureCategories(lastEventData);
         renderEvent(lastEventData);
         pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
+        if(migrated) writeCategoriesAndDeletions([]);
       }, err=>{
         console.error(err);
         toast(t('syncError'));
@@ -1038,9 +1128,11 @@ service cloud.firestore {
       lastEventData = all[currentEventCode];
       if(!lastEventData){ toast(t('localEventNotFound')); goHome(); return; }
       if(!lastEventData.items) lastEventData.items = {};
+      const migrated = ensureCategories(lastEventData);
       currentUnsub = ()=>{};
       renderEvent(lastEventData);
       pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
+      if(migrated) localPersist();
     }
   }
 
@@ -1085,6 +1177,19 @@ service cloud.firestore {
       catch(e){ toast(t('updateError', { msg:e.message })); }
     } else { localPersist(); }
   }
+  // Persists the current categories array (add/rename/recolor/reorder), optionally
+  // deleting a batch of items in the same write (used when a category with
+  // existing items is deleted).
+  async function writeCategoriesAndDeletions(deletedItemIds){
+    if(currentMode==='firebase'){
+      const updates = { categories: lastEventData.categories };
+      (deletedItemIds||[]).forEach(id => { updates[`items.${id}`] = fsMod.deleteField(); });
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), updates); }
+      catch(e){ toast(t('updateError', { msg:e.message })); }
+    } else {
+      localPersist();
+    }
+  }
 
   async function addItem(catKey, rawText){
     const text = (rawText||'').trim();
@@ -1128,9 +1233,115 @@ service cloud.firestore {
     await writeMeta({ name: val });
   }
 
+  /* ===================== Catégories : ajout / édition / suppression / ordre ===================== */
+  let categoryModalMode = 'add'; // 'add' | 'edit'
+  let categoryModalTargetId = null;
+  let categoryModalSelectedColor = CATEGORY_PALETTE[0];
+
+  function nextSuggestedColor(){
+    const used = new Set((lastEventData.categories||[]).map(c=>c.color));
+    const free = CATEGORY_PALETTE.find(c=>!used.has(c));
+    return free || CATEGORY_PALETTE[(lastEventData.categories||[]).length % CATEGORY_PALETTE.length];
+  }
+  function renderColorSwatches(){
+    const wrap = $('#cat-color-swatches');
+    wrap.innerHTML = CATEGORY_PALETTE.map(c=>
+      `<button type="button" class="swatch ${c===categoryModalSelectedColor?'selected':''}" data-color="${c}" style="background:${c}" aria-label="${c}"></button>`
+    ).join('');
+  }
+  function refreshCategoryReorderButtons(){
+    const cats = lastEventData.categories || [];
+    const idx = cats.findIndex(c=>c.id===categoryModalTargetId);
+    $('#btn-cat-move-up').disabled = idx<=0;
+    $('#btn-cat-move-down').disabled = idx<0 || idx>=cats.length-1;
+  }
+  function openAddCategoryModal(){
+    categoryModalMode = 'add';
+    categoryModalTargetId = null;
+    categoryModalSelectedColor = nextSuggestedColor();
+    $('#category-modal-title').textContent = t('addCategoryTitle');
+    $('#cat-name-input').value = '';
+    renderColorSwatches();
+    $('#cat-reorder-row').classList.add('hidden');
+    $('#btn-delete-category').classList.add('hidden');
+    $('#modal-category').classList.remove('hidden');
+    setTimeout(()=> $('#cat-name-input').focus(), 50);
+  }
+  function openEditCategoryModal(catId){
+    const cat = (lastEventData.categories||[]).find(c=>c.id===catId);
+    if(!cat) return;
+    categoryModalMode = 'edit';
+    categoryModalTargetId = catId;
+    categoryModalSelectedColor = cat.color;
+    $('#category-modal-title').textContent = t('editCategoryTitle');
+    $('#cat-name-input').value = cat.name;
+    renderColorSwatches();
+    $('#cat-reorder-row').classList.remove('hidden');
+    $('#btn-delete-category').classList.remove('hidden');
+    refreshCategoryReorderButtons();
+    $('#modal-category').classList.remove('hidden');
+  }
+  function closeCategoryModal(){ $('#modal-category').classList.add('hidden'); }
+
+  async function handleSaveCategory(){
+    const name = $('#cat-name-input').value.trim();
+    if(!name){ toast(t('categoryNameRequired')); return; }
+    if(categoryModalMode==='add'){
+      const newCat = { id:uid(), name, color:categoryModalSelectedColor };
+      optimisticApply(d => { if(!Array.isArray(d.categories)) d.categories=[]; d.categories.push(newCat); });
+      openCats.add(newCat.id);
+      renderEvent(lastEventData);
+      await writeCategoriesAndDeletions([]);
+      toast(t('categoryAddedToast', { name }));
+    } else {
+      optimisticApply(d => {
+        const c = (d.categories||[]).find(c=>c.id===categoryModalTargetId);
+        if(c){ c.name = name; c.color = categoryModalSelectedColor; }
+      });
+      await writeCategoriesAndDeletions([]);
+    }
+    closeCategoryModal();
+  }
+
+  async function handleDeleteCategory(){
+    const catId = categoryModalTargetId;
+    if(!catId || !lastEventData) return;
+    const cats = lastEventData.categories || [];
+    if(cats.length<=1){ toast(t('cannotDeleteLastCategory')); return; }
+    const cat = cats.find(c=>c.id===catId);
+    if(!cat) return;
+    const itemsInCat = Object.values(lastEventData.items||{}).filter(it=>it.category===catId);
+    const msg = itemsInCat.length
+      ? t('deleteCategoryConfirmWithItems', { name:cat.name, count:itemsInCat.length })
+      : t('deleteCategoryConfirm', { name:cat.name });
+    if(!confirm(msg)) return;
+    const deletedIds = itemsInCat.map(it=>it.id);
+    optimisticApply(d => {
+      d.categories = (d.categories||[]).filter(c=>c.id!==catId);
+      deletedIds.forEach(id => { delete d.items[id]; });
+    });
+    openCats.delete(catId);
+    closeCategoryModal();
+    await writeCategoriesAndDeletions(deletedIds);
+    toast(t('categoryDeletedToast', { name:cat.name }));
+  }
+
+  async function moveCategory(dir){
+    const cats = lastEventData.categories || [];
+    const idx = cats.findIndex(c=>c.id===categoryModalTargetId);
+    const newIdx = idx + dir;
+    if(idx<0 || newIdx<0 || newIdx>=cats.length) return;
+    optimisticApply(d => {
+      const arr = d.categories;
+      const tmp = arr[idx]; arr[idx] = arr[newIdx]; arr[newIdx] = tmp;
+    });
+    refreshCategoryReorderButtons();
+    await writeCategoriesAndDeletions([]);
+  }
+
   /* ===================== Rendu de l'événement ===================== */
-  function sortedItems(data, cat){
-    const arr = Object.values(data.items||{}).filter(it => it.category===cat);
+  function sortedItems(data, catId){
+    const arr = Object.values(data.items||{}).filter(it => it.category===catId);
     const rank = { todo:0, done:1, cancelled:2 };
     arr.sort((a,b)=>{
       if(rank[a.state]!==rank[b.state]) return rank[a.state]-rank[b.state];
@@ -1142,7 +1353,7 @@ service cloud.firestore {
 
   function itemRowHtml(it){
     const stateIcon = it.state==='done' ? '✓' : (it.state==='cancelled' ? '✕' : '');
-    const others = CATEGORIES.filter(c => c.key!==it.category);
+    const others = (lastEventData.categories||[]).filter(c => c.id!==it.category);
     const menuOpen = openMenuId===it.id;
     return `
     <li class="item-row state-${it.state}" data-id="${it.id}">
@@ -1152,7 +1363,7 @@ service cloud.firestore {
       <div class="item-menu ${menuOpen ? '' : 'hidden'}">
         <p class="menu-label">${t('moveTo')}</p>
         <div class="menu-cats">
-          ${others.map(c=>`<button class="menu-move" data-cat="${c.key}">${c.code}</button>`).join('')}
+          ${others.map(c=>`<button class="menu-move" data-cat="${c.id}"><span class="dot" style="background:${c.color}"></span>${escapeHtml(c.name)}</button>`).join('')}
         </div>
         <button class="menu-delete">${t('delete')}</button>
       </div>
@@ -1162,36 +1373,39 @@ service cloud.firestore {
   function renderEvent(data){
     if(!data) return;
     lastEventData = data;
+    ensureCategories(data);
     $('#event-name-display').textContent = data.name || t('defaultVoyage');
     $('#event-code-display').textContent = currentEventCode || '------';
     $('#export-banner').classList.toggle('hidden', !(currentMode==='local' && fbReady));
 
     const root = $('#categories-root');
-    root.innerHTML = CATEGORIES.map(cat=>{
-      const items = sortedItems(data, cat.key);
+    root.innerHTML = data.categories.map(cat=>{
+      const items = sortedItems(data, cat.id);
       const total = items.length;
       const done = items.filter(i=>i.state==='done').length;
-      const isOpen = openCats.has(cat.key);
-      const label = catLabel(cat.key);
+      const isOpen = openCats.has(cat.id);
       return `
-      <div class="cat-section" data-cat="${cat.key}">
-        <button class="cat-header" data-cat="${cat.key}" style="--accent:${cat.color}">
-          <span class="stamp">${cat.code}</span>
-          <span class="cat-title">${escapeHtml(label)}</span>
-          <span class="cat-count">${done}/${total}</span>
-          <span class="chevron">${isOpen ? '⌃' : '⌄'}</span>
-        </button>
+      <div class="cat-section" data-cat="${cat.id}">
+        <div class="cat-header-row">
+          <button class="cat-header" data-cat="${cat.id}">
+            <span class="cat-dot" style="background:${cat.color}"></span>
+            <span class="cat-title">${escapeHtml(cat.name)}</span>
+            <span class="cat-count">${done}/${total}</span>
+            <span class="chevron">${isOpen ? '⌃' : '⌄'}</span>
+          </button>
+          <button class="cat-kebab" data-cat="${cat.id}" aria-label="${t('categoryOptionsAria')}">⋮</button>
+        </div>
         <div class="cat-body ${isOpen ? '' : 'hidden'}">
           <ul class="item-list">
             ${items.map(itemRowHtml).join('') || `<li class="empty-hint">${t('emptyHint')}</li>`}
           </ul>
           <div class="add-row">
-            <input class="add-input" placeholder="${t('addPlaceholder',{cat:label})}" autocomplete="off" />
+            <input class="add-input" placeholder="${t('addPlaceholder',{cat:cat.name})}" autocomplete="off" />
             <button class="add-btn" aria-label="+">＋</button>
           </div>
         </div>
       </div>`;
-    }).join('');
+    }).join('') + `<button id="btn-add-category" class="add-category-btn">+ ${t('addCategoryBtn')}</button>`;
 
     adjustOpenMenuPosition();
   }
@@ -1230,6 +1444,12 @@ service cloud.firestore {
   categoriesRoot.addEventListener('click', (e)=>{
     const header = e.target.closest('.cat-header');
     if(header){ toggleCategory(header.dataset.cat); return; }
+
+    const catKebab = e.target.closest('.cat-kebab');
+    if(catKebab){ openEditCategoryModal(catKebab.dataset.cat); return; }
+
+    const addCatBtn = e.target.closest('#btn-add-category');
+    if(addCatBtn){ openAddCategoryModal(); return; }
 
     const stateBtn = e.target.closest('.state-btn');
     if(stateBtn){ cycleItemState(stateBtn.closest('.item-row').dataset.id); return; }
@@ -1452,6 +1672,21 @@ service cloud.firestore {
     updateSettingsStatus(t('statusLocal'), '');
     updateModeIndicator();
     toast(t('configCleared'));
+  });
+
+  /* ===================== Modale catégorie (ajout / édition) ===================== */
+  $('#btn-close-category').addEventListener('click', closeCategoryModal);
+  $('#modal-category').addEventListener('click', (e)=>{ if(e.target.id==='modal-category') closeCategoryModal(); });
+  $('#btn-save-category').addEventListener('click', handleSaveCategory);
+  $('#btn-delete-category').addEventListener('click', handleDeleteCategory);
+  $('#btn-cat-move-up').addEventListener('click', ()=> moveCategory(-1));
+  $('#btn-cat-move-down').addEventListener('click', ()=> moveCategory(1));
+  $('#cat-name-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleSaveCategory(); });
+  $('#cat-color-swatches').addEventListener('click', (e)=>{
+    const sw = e.target.closest('.swatch');
+    if(!sw) return;
+    categoryModalSelectedColor = sw.dataset.color;
+    renderColorSwatches();
   });
 
   /* ===================== Langue / thème : contrôles ===================== */
