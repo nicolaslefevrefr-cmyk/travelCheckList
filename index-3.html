@@ -301,6 +301,21 @@
     padding:6px 10px 12px;
   }
 
+  .tag-group{
+    margin:8px 0 2px 4px;
+    border-left:2px solid var(--divider);
+    padding-left:8px;
+  }
+  .tag-header{
+    width:100%; background:none; border:none;
+    display:flex; align-items:center; gap:8px;
+    padding:7px 4px; text-align:left;
+  }
+  .tag-dot{ flex:0 0 auto; width:9px; height:9px; border-radius:50%; }
+  .tag-title{ flex:1; min-width:0; font-size:13px; font-weight:700; color:var(--ink-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag-count{ font-size:11px; color:var(--ink-faint); font-family:monospace; }
+  .chevron.small{ font-size:12px; }
+
   .add-category-btn{
     width:100%; background:none; border:2px dashed var(--divider);
     border-radius:var(--radius-lg); color:var(--ink-dim);
@@ -313,6 +328,26 @@
     width:32px; height:32px; border-radius:50%; border:2px solid transparent; padding:0;
   }
   .swatch.selected{ border-color:var(--ink); box-shadow:0 0 0 2px var(--bg-alt) inset; }
+
+  #tags-list{ display:flex; flex-direction:column; margin-top:6px; max-height:38vh; overflow-y:auto; }
+  .tag-row{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 2px; border-bottom:1px solid var(--divider);
+  }
+  .tag-row:last-child{ border-bottom:none; }
+  .tag-row-dot{ flex:0 0 auto; width:13px; height:13px; border-radius:50%; }
+  .tag-row-name{
+    flex:1; min-width:0; font-size:14px; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    padding:4px 2px; cursor:text;
+  }
+  .tag-row button{
+    flex:0 0 auto; width:30px; height:30px;
+    background:var(--bg-alt); border:1px solid var(--divider); border-radius:8px;
+    font-size:13px; color:var(--ink-dim);
+  }
+  .tag-row button:disabled{ opacity:.3; }
+  .tag-row-delete{ color:var(--danger) !important; border-color:var(--danger) !important; }
 
   .item-list{ list-style:none; margin:0; padding:0; }
   .empty-hint{ color:var(--ink-faint); font-size:13px; padding:12px 6px; font-style:italic; }
@@ -369,6 +404,19 @@
   }
   .menu-move .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
   .menu-move:active{ background:var(--teal); color:#0B1F1A; }
+  .item-tag-chip{ flex:0 0 auto; width:9px; height:9px; border-radius:50%; }
+  .menu-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .menu-tag{
+    background:var(--surface-2); border:1px solid var(--divider); color:var(--ink);
+    border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:600;
+    display:inline-flex; align-items:center; gap:6px; max-width:100%;
+  }
+  .menu-tag .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .menu-tag.selected{ background:var(--teal); color:#0B1F1A; border-color:var(--teal); }
+  .menu-manage-tags{
+    width:100%; background:none; border:1px dashed var(--divider); color:var(--ink-dim);
+    border-radius:var(--radius-sm); padding:9px; font-size:12.5px; margin-bottom:10px;
+  }
   .menu-delete{
     width:100%; background:none; border:1px solid var(--danger); color:var(--danger);
     border-radius:var(--radius-sm); padding:8px; font-size:13px; font-weight:600;
@@ -512,6 +560,7 @@
           <h1 id="event-name-display" title="Tap to rename">Trip</h1>
           <button id="btn-copy-code" class="code-chip"><span id="event-code-display">------</span> <span class="copy-icon">📋</span> <span data-i18n="copyCode">copy</span></button>
         </div>
+        <button id="btn-manage-tags" class="icon-btn" aria-label="Manage tags" data-i18n-aria="manageTagsAria">🏷️</button>
         <button id="btn-settings" class="icon-btn" aria-label="Settings">⚙️</button>
       </div>
 
@@ -584,6 +633,23 @@ service cloud.firestore {
       </div>
       <button class="btn btn-primary" id="btn-save-category" data-i18n="saveCategory" style="margin-top:14px;">Save</button>
       <button class="btn btn-danger-outline hidden" id="btn-delete-category" data-i18n="deleteCategoryBtn" style="margin-top:8px;">🗑 Delete category</button>
+    </div>
+  </div>
+
+  <!-- ============ MANAGE TAGS MODAL ============ -->
+  <div id="modal-tags" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="manageTagsTitle">Manage tags</h2>
+        <button id="btn-close-tags" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="hint" data-i18n="manageTagsHint">Tags let you group items inside each category — e.g. Food, Camping, Car. Assign them from an item's ⋮ menu.</p>
+      <div id="tags-list"></div>
+      <div class="field-row" style="margin-top:10px;">
+        <input id="new-tag-input" placeholder="New tag name" data-i18n-placeholder="newTagPlaceholder" autocomplete="off" maxlength="30" />
+        <button id="btn-add-tag" class="btn btn-primary" style="flex:0 0 auto; width:48px;" aria-label="Add">＋</button>
+      </div>
+      <button class="btn btn-ghost" id="btn-close-tags-2" data-i18n="closeBtn" style="margin-top:14px;">Close</button>
     </div>
   </div>
 
@@ -734,6 +800,17 @@ service cloud.firestore {
       categoryAddedToast:'Category "{name}" added.',
       categoryDeletedToast:'Category "{name}" deleted.',
       categoryOptionsAria:"Category options",
+      manageTagsAria:"Manage tags",
+      manageTagsTitle:"Manage tags",
+      manageTagsHint:"Tags let you group items inside each category — e.g. Food, Camping, Car. Assign them from an item's ⋮ menu.",
+      newTagPlaceholder:"New tag name",
+      closeBtn:"Close",
+      tagLabel:"Tag",
+      noTag:"No tag",
+      manageTagsInline:"🏷️ Manage tags…",
+      noTagsYetHint:"No tags yet — add one below.",
+      deleteTagConfirm:'Delete the "{name}" tag? Items keep their text but lose this tag.',
+      tagDeletedToast:'Tag "{name}" deleted.',
       firebaseConnected:"Connected to Firebase ✅",
       firebaseFailToast:"Could not connect to Firebase, local mode active.",
       localModeToast:"Local mode enabled.",
@@ -844,6 +921,17 @@ service cloud.firestore {
       categoryAddedToast:'Catégorie « {name} » ajoutée.',
       categoryDeletedToast:'Catégorie « {name} » supprimée.',
       categoryOptionsAria:"Options de la catégorie",
+      manageTagsAria:"Gérer les tags",
+      manageTagsTitle:"Gérer les tags",
+      manageTagsHint:"Les tags permettent de regrouper les éléments à l'intérieur de chaque catégorie — ex : Nourriture, Camping, Voiture. Assignez-les depuis le menu ⋮ d'un élément.",
+      newTagPlaceholder:"Nom du nouveau tag",
+      closeBtn:"Fermer",
+      tagLabel:"Tag",
+      noTag:"Aucun tag",
+      manageTagsInline:"🏷️ Gérer les tags…",
+      noTagsYetHint:"Aucun tag pour l'instant — ajoutez-en un ci-dessous.",
+      deleteTagConfirm:'Supprimer le tag « {name} » ? Les éléments gardent leur texte mais perdent ce tag.',
+      tagDeletedToast:'Tag « {name} » supprimé.',
       firebaseConnected:"Connecté à Firebase ✅",
       firebaseFailToast:"Connexion Firebase impossible, mode local activé.",
       localModeToast:"Mode local activé.",
@@ -915,6 +1003,7 @@ service cloud.firestore {
   let currentUnsub=null;
   let lastEventData=null;
   let openCats = new Set();
+  let openTags = new Set(); // keys are `${categoryId}::${tagId}`
   let openMenuId=null;
   let currentLang = lsGet(LS.lang, 'en');
   let currentTheme = lsGet(LS.theme, 'light');
@@ -1059,7 +1148,7 @@ service cloud.firestore {
           items[id] = { id, text:s.text, category:s.category, state:'todo', order:Date.now()+i, updatedAt:Date.now() };
         });
       }
-      const data = { name, items, categories: buildDefaultCategories(currentLang), createdAt:Date.now() };
+      const data = { name, items, categories: buildDefaultCategories(currentLang), tags: [], createdAt:Date.now() };
       if(mode==='firebase'){
         await fsMod.setDoc(fsMod.doc(fbDb,'events',code), data);
       } else {
@@ -1077,6 +1166,7 @@ service cloud.firestore {
     currentEventCode = code;
     currentMode = mode;
     openCats = new Set(); // every event opens fully collapsed
+    openTags = new Set();
     openMenuId = null;
     lsSet(LS.current, { code, mode });
     showScreen('event');
@@ -1106,6 +1196,12 @@ service cloud.firestore {
     return false;
   }
 
+  // Tags are purely opt-in: default to an empty list in memory, no need to
+  // persist anything until the user actually creates one.
+  function ensureTags(data){
+    if(!Array.isArray(data.tags)) data.tags = [];
+  }
+
   /* ===================== Écoute / synchronisation ===================== */
   function startListening(){
     if(currentUnsub) currentUnsub();
@@ -1116,6 +1212,7 @@ service cloud.firestore {
         lastEventData = snap.data();
         if(!lastEventData.items) lastEventData.items = {};
         const migrated = ensureCategories(lastEventData);
+        ensureTags(lastEventData);
         renderEvent(lastEventData);
         pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
         if(migrated) writeCategoriesAndDeletions([]);
@@ -1129,6 +1226,7 @@ service cloud.firestore {
       if(!lastEventData){ toast(t('localEventNotFound')); goHome(); return; }
       if(!lastEventData.items) lastEventData.items = {};
       const migrated = ensureCategories(lastEventData);
+      ensureTags(lastEventData);
       currentUnsub = ()=>{};
       renderEvent(lastEventData);
       pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
@@ -1184,6 +1282,18 @@ service cloud.firestore {
     if(currentMode==='firebase'){
       const updates = { categories: lastEventData.categories };
       (deletedItemIds||[]).forEach(id => { updates[`items.${id}`] = fsMod.deleteField(); });
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), updates); }
+      catch(e){ toast(t('updateError', { msg:e.message })); }
+    } else {
+      localPersist();
+    }
+  }
+  // Persists the current tags array (add/rename/reorder/delete). When a tag is
+  // deleted, affected items simply lose that tag (they are never removed).
+  async function writeTagsAndClearing(clearedItemIds){
+    if(currentMode==='firebase'){
+      const updates = { tags: lastEventData.tags || [] };
+      (clearedItemIds||[]).forEach(id => { updates[`items.${id}.tag`] = null; });
       try{ await fsMod.updateDoc(fsMod.doc(fbDb,'events',currentEventCode), updates); }
       catch(e){ toast(t('updateError', { msg:e.message })); }
     } else {
@@ -1339,6 +1449,98 @@ service cloud.firestore {
     await writeCategoriesAndDeletions([]);
   }
 
+  /* ===================== Tags (sous-catégories transversales) ===================== */
+  function nextTagColor(){
+    const used = new Set((lastEventData.tags||[]).map(t=>t.color));
+    const free = CATEGORY_PALETTE.find(c=>!used.has(c));
+    return free || CATEGORY_PALETTE[(lastEventData.tags||[]).length % CATEGORY_PALETTE.length];
+  }
+
+  function openTagsModal(){
+    ensureTags(lastEventData);
+    $('#new-tag-input').value = '';
+    renderTagsModalList();
+    $('#modal-tags').classList.remove('hidden');
+  }
+  function closeTagsModal(){ $('#modal-tags').classList.add('hidden'); }
+
+  function renderTagsModalList(){
+    const wrap = $('#tags-list');
+    const tags = lastEventData.tags || [];
+    if(!tags.length){
+      wrap.innerHTML = `<p class="empty-hint">${t('noTagsYetHint')}</p>`;
+      return;
+    }
+    wrap.innerHTML = tags.map((tg, idx)=>`
+      <div class="tag-row" data-tag="${tg.id}">
+        <span class="tag-row-dot" style="background:${tg.color}"></span>
+        <span class="tag-row-name" data-tag="${tg.id}" title="${t('renameTitle')}">${escapeHtml(tg.name)}</span>
+        <button class="tag-row-up" data-tag="${tg.id}" ${idx===0?'disabled':''} aria-label="${t('moveUp')}">⬆</button>
+        <button class="tag-row-down" data-tag="${tg.id}" ${idx===tags.length-1?'disabled':''} aria-label="${t('moveDown')}">⬇</button>
+        <button class="tag-row-delete" data-tag="${tg.id}" aria-label="${t('delete')}">🗑</button>
+      </div>
+    `).join('');
+  }
+
+  async function addTag(rawName){
+    const name = (rawName||'').trim();
+    if(!name) return;
+    const newTag = { id:uid(), name, color:nextTagColor() };
+    optimisticApply(d=>{ if(!Array.isArray(d.tags)) d.tags=[]; d.tags.push(newTag); });
+    renderTagsModalList();
+    await writeTagsAndClearing([]);
+  }
+  async function renameTag(tagId, newName){
+    const val = (newName||'').trim();
+    if(!val){ renderTagsModalList(); return; }
+    optimisticApply(d=>{ const tg=(d.tags||[]).find(t=>t.id===tagId); if(tg) tg.name=val; });
+    renderTagsModalList();
+    await writeTagsAndClearing([]);
+  }
+  async function moveTag(tagId, dir){
+    const tags = lastEventData.tags || [];
+    const idx = tags.findIndex(t=>t.id===tagId);
+    const newIdx = idx + dir;
+    if(idx<0 || newIdx<0 || newIdx>=tags.length) return;
+    optimisticApply(d=>{
+      const arr = d.tags;
+      const tmp = arr[idx]; arr[idx] = arr[newIdx]; arr[newIdx] = tmp;
+    });
+    renderTagsModalList();
+    await writeTagsAndClearing([]);
+  }
+  async function deleteTag(tagId){
+    const tg = (lastEventData.tags||[]).find(t=>t.id===tagId);
+    if(!tg) return;
+    if(!confirm(t('deleteTagConfirm', { name:tg.name }))) return;
+    const affected = Object.values(lastEventData.items||{}).filter(it=>it.tag===tagId).map(it=>it.id);
+    optimisticApply(d=>{
+      d.tags = (d.tags||[]).filter(t=>t.id!==tagId);
+      affected.forEach(id=>{ if(d.items[id]) d.items[id].tag=null; });
+    });
+    renderTagsModalList();
+    await writeTagsAndClearing(affected);
+    toast(t('tagDeletedToast', { name:tg.name }));
+  }
+  async function setItemTag(id, tagId){
+    openMenuId = null;
+    optimisticApply(d => { d.items[id].tag = tagId || null; });
+    await writePatch(id, { tag: tagId || null });
+  }
+  function toggleTagGroup(key){
+    if(openTags.has(key)) openTags.delete(key); else openTags.add(key);
+    renderEvent(lastEventData);
+  }
+  function startEditTagName(span){
+    const tagId = span.dataset.tag;
+    const input = document.createElement('input');
+    input.className = 'edit-input';
+    input.value = span.textContent;
+    input.dataset.tag = tagId;
+    span.replaceWith(input);
+    input.focus(); input.select();
+  }
+
   /* ===================== Rendu de l'événement ===================== */
   function sortedItems(data, catId){
     const arr = Object.values(data.items||{}).filter(it => it.category===catId);
@@ -1351,29 +1553,75 @@ service cloud.firestore {
     return arr;
   }
 
+  // Splits an already-sorted item array into items with no tag (or a tag that
+  // no longer exists) and groups of items sharing a valid tag, in tag order.
+  function groupItemsByTag(items, tags){
+    const byTag = {};
+    const untagged = [];
+    items.forEach(it=>{
+      if(it.tag && tags.some(t=>t.id===it.tag)){
+        (byTag[it.tag] = byTag[it.tag] || []).push(it);
+      } else {
+        untagged.push(it);
+      }
+    });
+    const taggedGroups = tags
+      .map(tg => ({ tag:tg, items: byTag[tg.id] || [] }))
+      .filter(g => g.items.length>0);
+    return { untagged, taggedGroups };
+  }
+
   function itemRowHtml(it){
     const stateIcon = it.state==='done' ? '✓' : (it.state==='cancelled' ? '✕' : '');
     const others = (lastEventData.categories||[]).filter(c => c.id!==it.category);
+    const tags = lastEventData.tags || [];
+    const currentTag = it.tag ? tags.find(tg=>tg.id===it.tag) : null;
     const menuOpen = openMenuId===it.id;
+    const tagSection = tags.length ? `
+        <p class="menu-label">${t('tagLabel')}</p>
+        <div class="menu-tags">
+          <button class="menu-tag ${!currentTag?'selected':''}" data-tag="">${t('noTag')}</button>
+          ${tags.map(tg=>`<button class="menu-tag ${it.tag===tg.id?'selected':''}" data-tag="${tg.id}"><span class="dot" style="background:${tg.color}"></span>${escapeHtml(tg.name)}</button>`).join('')}
+        </div>` : `
+        <button type="button" class="menu-manage-tags">${t('manageTagsInline')}</button>`;
     return `
     <li class="item-row state-${it.state}" data-id="${it.id}">
       <button class="state-btn" aria-label="${t('stateAria')}">${stateIcon}</button>
       <span class="item-text" title="${t('renameTitle')}">${escapeHtml(it.text)}</span>
+      ${currentTag ? `<span class="item-tag-chip" style="background:${currentTag.color}" title="${escapeHtml(currentTag.name)}"></span>` : ''}
       <button class="kebab-btn" aria-label="${t('optionsAria')}">⋮</button>
       <div class="item-menu ${menuOpen ? '' : 'hidden'}">
         <p class="menu-label">${t('moveTo')}</p>
         <div class="menu-cats">
           ${others.map(c=>`<button class="menu-move" data-cat="${c.id}"><span class="dot" style="background:${c.color}"></span>${escapeHtml(c.name)}</button>`).join('')}
         </div>
+        ${tagSection}
         <button class="menu-delete">${t('delete')}</button>
       </div>
     </li>`;
+  }
+
+  function tagGroupHtml(catId, group){
+    const key = catId + '::' + group.tag.id;
+    const isOpen = openTags.has(key);
+    const done = group.items.filter(i=>i.state==='done').length;
+    return `
+    <div class="tag-group">
+      <button class="tag-header" data-cat="${catId}" data-tag="${group.tag.id}">
+        <span class="tag-dot" style="background:${group.tag.color}"></span>
+        <span class="tag-title">${escapeHtml(group.tag.name)}</span>
+        <span class="tag-count">${done}/${group.items.length}</span>
+        <span class="chevron small">${isOpen ? '⌃' : '⌄'}</span>
+      </button>
+      <ul class="item-list ${isOpen ? '' : 'hidden'}">${group.items.map(itemRowHtml).join('')}</ul>
+    </div>`;
   }
 
   function renderEvent(data){
     if(!data) return;
     lastEventData = data;
     ensureCategories(data);
+    ensureTags(data);
     $('#event-name-display').textContent = data.name || t('defaultVoyage');
     $('#event-code-display').textContent = currentEventCode || '------';
     $('#export-banner').classList.toggle('hidden', !(currentMode==='local' && fbReady));
@@ -1384,6 +1632,10 @@ service cloud.firestore {
       const total = items.length;
       const done = items.filter(i=>i.state==='done').length;
       const isOpen = openCats.has(cat.id);
+      const { untagged, taggedGroups } = groupItemsByTag(items, data.tags);
+      const untaggedHtml = total===0
+        ? `<li class="empty-hint">${t('emptyHint')}</li>`
+        : untagged.map(itemRowHtml).join('');
       return `
       <div class="cat-section" data-cat="${cat.id}">
         <div class="cat-header-row">
@@ -1396,9 +1648,8 @@ service cloud.firestore {
           <button class="cat-kebab" data-cat="${cat.id}" aria-label="${t('categoryOptionsAria')}">⋮</button>
         </div>
         <div class="cat-body ${isOpen ? '' : 'hidden'}">
-          <ul class="item-list">
-            ${items.map(itemRowHtml).join('') || `<li class="empty-hint">${t('emptyHint')}</li>`}
-          </ul>
+          <ul class="item-list">${untaggedHtml}</ul>
+          ${taggedGroups.map(g=>tagGroupHtml(cat.id, g)).join('')}
           <div class="add-row">
             <input class="add-input" placeholder="${t('addPlaceholder',{cat:cat.name})}" autocomplete="off" />
             <button class="add-btn" aria-label="+">＋</button>
@@ -1451,6 +1702,9 @@ service cloud.firestore {
     const addCatBtn = e.target.closest('#btn-add-category');
     if(addCatBtn){ openAddCategoryModal(); return; }
 
+    const tagHeader = e.target.closest('.tag-header');
+    if(tagHeader){ toggleTagGroup(tagHeader.dataset.cat + '::' + tagHeader.dataset.tag); return; }
+
     const stateBtn = e.target.closest('.state-btn');
     if(stateBtn){ cycleItemState(stateBtn.closest('.item-row').dataset.id); return; }
 
@@ -1465,6 +1719,12 @@ service cloud.firestore {
 
     const moveBtn = e.target.closest('.menu-move');
     if(moveBtn){ moveItemTo(moveBtn.closest('.item-row').dataset.id, moveBtn.dataset.cat); return; }
+
+    const tagBtn = e.target.closest('.menu-tag');
+    if(tagBtn){ setItemTag(tagBtn.closest('.item-row').dataset.id, tagBtn.dataset.tag); return; }
+
+    const manageTagsLink = e.target.closest('.menu-manage-tags');
+    if(manageTagsLink){ openMenuId=null; renderEvent(lastEventData); openTagsModal(); return; }
 
     const delBtn = e.target.closest('.menu-delete');
     if(delBtn){
@@ -1687,6 +1947,44 @@ service cloud.firestore {
     if(!sw) return;
     categoryModalSelectedColor = sw.dataset.color;
     renderColorSwatches();
+  });
+
+  /* ===================== Modale de gestion des tags ===================== */
+  $('#btn-manage-tags').addEventListener('click', openTagsModal);
+  $('#btn-close-tags').addEventListener('click', closeTagsModal);
+  $('#btn-close-tags-2').addEventListener('click', closeTagsModal);
+  $('#modal-tags').addEventListener('click', (e)=>{ if(e.target.id==='modal-tags') closeTagsModal(); });
+  $('#btn-add-tag').addEventListener('click', ()=>{
+    addTag($('#new-tag-input').value);
+    $('#new-tag-input').value = '';
+    $('#new-tag-input').focus();
+  });
+  $('#new-tag-input').addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      addTag(e.target.value);
+      e.target.value = '';
+    }
+  });
+  $('#tags-list').addEventListener('click', (e)=>{
+    const up = e.target.closest('.tag-row-up');
+    if(up){ moveTag(up.dataset.tag, -1); return; }
+    const down = e.target.closest('.tag-row-down');
+    if(down){ moveTag(down.dataset.tag, 1); return; }
+    const del = e.target.closest('.tag-row-delete');
+    if(del){ deleteTag(del.dataset.tag); return; }
+    const name = e.target.closest('.tag-row-name');
+    if(name && name.tagName!=='INPUT'){ startEditTagName(name); return; }
+  });
+  $('#tags-list').addEventListener('keydown', (e)=>{
+    if(e.target.classList.contains('edit-input') && e.target.dataset.tag){
+      if(e.key==='Enter') renameTag(e.target.dataset.tag, e.target.value);
+      if(e.key==='Escape') renderTagsModalList();
+    }
+  });
+  $('#tags-list').addEventListener('focusout', (e)=>{
+    if(e.target.classList.contains('edit-input') && e.target.dataset.tag){
+      renameTag(e.target.dataset.tag, e.target.value);
+    }
   });
 
   /* ===================== Langue / thème : contrôles ===================== */
