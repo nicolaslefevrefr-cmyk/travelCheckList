@@ -224,14 +224,37 @@
   .mode-indicator.connected{ color:var(--success); }
 
   #recent-list{ display:flex; flex-direction:column; gap:8px; }
+  .recent-item-row{ display:flex; align-items:stretch; gap:8px; }
   .recent-item{
+    flex:1; min-width:0;
     display:flex; align-items:center; justify-content:space-between;
     background:var(--bg-alt); border:1px solid var(--divider);
     border-radius:var(--radius-sm); padding:10px 12px;
-    font-size:14px; text-align:left; width:100%;
+    font-size:14px; text-align:left;
   }
-  .recent-item .r-name{ color:var(--ink); font-weight:600; }
-  .recent-item .r-code{ color:var(--ink-faint); font-family:monospace; letter-spacing:.1em; font-size:12px; }
+  .recent-item .r-name{ color:var(--ink); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .recent-item .r-code{ color:var(--ink-faint); font-family:monospace; letter-spacing:.1em; font-size:12px; flex:0 0 auto; margin-left:8px; }
+  .recent-remove{
+    flex:0 0 auto; width:40px; background:none; border:1px solid var(--divider);
+    border-radius:var(--radius-sm); color:var(--danger); font-size:14px;
+  }
+
+  .profile-bar{
+    display:flex; align-items:center; gap:10px;
+    background:var(--surface); border:1px solid var(--divider);
+    border-radius:var(--radius-lg); padding:12px 14px; margin-bottom:16px;
+    box-shadow:var(--shadow);
+  }
+  .profile-avatar{ font-size:22px; flex:0 0 auto; }
+  .profile-info{ flex:1; min-width:0; }
+  .profile-name{
+    font-size:14.5px; font-weight:700; color:var(--ink); display:block;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .btn-ghost-small{
+    background:none; border:1px solid var(--divider); color:var(--ink-dim);
+    border-radius:999px; padding:8px 12px; font-size:12px; font-weight:700; flex:0 0 auto;
+  }
 
   /* ---------- Event screen ---------- */
   .event-header{
@@ -515,8 +538,43 @@
   </div>
   <div id="app">
 
+    <!-- ============ WELCOME / PROFILE SCREEN ============ -->
+    <section id="screen-welcome" class="screen hidden">
+      <div class="hero">
+        <p class="eyebrow" data-i18n="eyebrow">Shared travel journal</p>
+        <h1 data-i18n="welcomeTitle">Welcome</h1>
+        <p class="sub" data-i18n="welcomeSub">Enter your name to create your profile and keep access to all your checklists, on any device.</p>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="createProfileTitle">Create your profile</h2>
+        <div class="field-col">
+          <input id="input-profile-name" placeholder="Your name" data-i18n-placeholder="profileNamePlaceholder" autocomplete="off" maxlength="40" />
+          <button id="btn-create-profile" class="btn btn-accent" data-i18n="createProfileBtn">Continue</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="loginProfileTitle">Already have a profile?</h2>
+        <div class="field-row">
+          <input id="input-profile-code" maxlength="6" placeholder="CODE" autocapitalize="characters" autocomplete="off" />
+          <button id="btn-login-profile" class="btn btn-primary" data-i18n="loginProfileBtn">Log in</button>
+        </div>
+        <p id="profile-login-error" class="error-text hidden"></p>
+      </div>
+    </section>
+
     <!-- ============ HOME SCREEN ============ -->
-    <section id="screen-home" class="screen">
+    <section id="screen-home" class="screen hidden">
+      <div id="profile-bar" class="profile-bar hidden">
+        <span class="profile-avatar">👤</span>
+        <div class="profile-info">
+          <span id="profile-name-display" class="profile-name">Name</span>
+          <button id="btn-profile-code" class="code-chip"><span id="profile-code-display">------</span> <span class="copy-icon">📋</span></button>
+        </div>
+        <button id="btn-logout" class="btn-ghost-small" data-i18n="logoutBtn">Switch profile</button>
+      </div>
+
       <div class="hero">
         <p class="eyebrow" data-i18n="eyebrow">Shared travel journal</p>
         <h1 data-i18n="appTitle">Checklist</h1>
@@ -542,7 +600,7 @@
       </div>
 
       <div class="card hidden" id="recent-card">
-        <h2 data-i18n="recentTitle">Recent</h2>
+        <h2 data-i18n="myChecklistsTitle">My checklists</h2>
         <div id="recent-list"></div>
       </div>
 
@@ -703,10 +761,11 @@ service cloud.firestore {
     config:'ct_firebaseConfig',
     configInitialized:'ct_configInitialized',
     localEvents:'ct_localEvents',
-    recents:'ct_recents',
     current:'ct_currentEvent',
     lang:'ct_lang',
     theme:'ct_theme',
+    userCode:'ct_userCode',
+    localUsers:'ct_localUsers',
   };
 
   const FIREBASE_VERSION = '10.12.2';
@@ -740,8 +799,24 @@ service cloud.firestore {
       seedLabel:"Pre-fill with examples",
       createBtn:"Create event",
       creationError:"Error while creating: {msg}",
-      recentTitle:"Recent",
+      myChecklistsTitle:"My checklists",
       recentUnavailable:"This event is no longer available.",
+      removeFromMyChecklists:"Remove",
+      removeChecklistConfirm:"Remove this checklist from your profile? (It won't be deleted — you can re-add it later with its code.)",
+      welcomeTitle:"Welcome",
+      welcomeSub:"Enter your name to create your profile and keep access to all your checklists, on any device.",
+      createProfileTitle:"Create your profile",
+      profileNamePlaceholder:"Your name",
+      createProfileBtn:"Continue",
+      loginProfileTitle:"Already have a profile?",
+      loginProfileBtn:"Log in",
+      profileNameRequired:"Please enter your name.",
+      profileCodeLenError:"The code must contain 6 characters.",
+      profileNotFoundError:"No profile found with this code.",
+      profileCreatedToast:"Profile created! Your code is {code} — save it to log in from another device.",
+      profileCreateError:"Error creating profile: {msg}",
+      logoutBtn:"Switch profile",
+      logoutConfirm:"Switch profile? You'll need your profile code to come back to this one.",
       modeLocal:"Local mode — no Firebase configured",
       modeConnected:"● Connected to Firebase",
       settingsBtn:"⚙️ Firebase settings",
@@ -861,8 +936,24 @@ service cloud.firestore {
       seedLabel:"Pré-remplir avec des exemples",
       createBtn:"Créer l'événement",
       creationError:"Erreur lors de la création : {msg}",
-      recentTitle:"Récents",
+      myChecklistsTitle:"Mes checklists",
       recentUnavailable:"Cet événement n'est plus disponible.",
+      removeFromMyChecklists:"Retirer",
+      removeChecklistConfirm:"Retirer cette checklist de votre profil ? (Elle ne sera pas supprimée — vous pourrez la rajouter plus tard avec son code.)",
+      welcomeTitle:"Bienvenue",
+      welcomeSub:"Entrez votre nom pour créer votre profil et garder l'accès à toutes vos checklists, depuis n'importe quel appareil.",
+      createProfileTitle:"Créer votre profil",
+      profileNamePlaceholder:"Votre nom",
+      createProfileBtn:"Continuer",
+      loginProfileTitle:"Vous avez déjà un profil ?",
+      loginProfileBtn:"Se connecter",
+      profileNameRequired:"Merci de saisir votre nom.",
+      profileCodeLenError:"Le code doit contenir 6 caractères.",
+      profileNotFoundError:"Aucun profil trouvé avec ce code.",
+      profileCreatedToast:"Profil créé ! Votre code est {code} — notez-le pour vous reconnecter depuis un autre appareil.",
+      profileCreateError:"Erreur lors de la création du profil : {msg}",
+      logoutBtn:"Changer de profil",
+      logoutConfirm:"Changer de profil ? Il vous faudra votre code de profil pour revenir sur celui-ci.",
       modeLocal:"Mode local — aucun Firebase configuré",
       modeConnected:"● Connecté à Firebase",
       settingsBtn:"⚙️ Paramètres Firebase",
@@ -1007,6 +1098,7 @@ service cloud.firestore {
   let openMenuId=null;
   let currentLang = lsGet(LS.lang, 'en');
   let currentTheme = lsGet(LS.theme, 'light');
+  let currentUser = null; // { code, mode, name, checklists:[{code,name}], createdAt }
 
   /* ===================== Langue / thème ===================== */
   function t(key, vars){
@@ -1071,8 +1163,26 @@ service cloud.firestore {
     return !!all[code];
   }
 
+  async function userCodeExists(code, mode){
+    if(mode==='firebase'){
+      const snap = await fsMod.getDoc(fsMod.doc(fbDb,'users',code));
+      return snap.exists();
+    }
+    const all = lsGet(LS.localUsers, {});
+    return !!all[code];
+  }
+  async function fetchUserDoc(code, mode){
+    if(mode==='firebase'){
+      const snap = await fsMod.getDoc(fsMod.doc(fbDb,'users',code));
+      return snap.exists() ? snap.data() : null;
+    }
+    const all = lsGet(LS.localUsers, {});
+    return all[code] || null;
+  }
+
   /* ===================== Écrans ===================== */
   function showScreen(name){
+    $('#screen-welcome').classList.toggle('hidden', name!=='welcome');
     $('#screen-home').classList.toggle('hidden', name!=='home');
     $('#screen-event').classList.toggle('hidden', name!=='event');
   }
@@ -1088,25 +1198,67 @@ service cloud.firestore {
     }
   }
 
-  /* ===================== Accueil ===================== */
-  function pushRecent(code, name, mode){
-    const list = lsGet(LS.recents, []).filter(r=>r.code!==code);
-    list.unshift({ code, name, mode, ts:Date.now() });
-    lsSet(LS.recents, list.slice(0,6));
+  /* ===================== Profil utilisateur ===================== */
+  // Called whenever we successfully enter/sync an event: keeps it listed in the
+  // signed-in user's persistent "My checklists" (works like the event codes
+  // themselves — same account code works from any device, local or Firebase).
+  async function syncChecklistToProfile(code, name, eventMode){
+    if(!currentUser) return;
+    const list = currentUser.checklists || (currentUser.checklists = []);
+    const idx = list.findIndex(c=>c.code===code);
+    if(idx>=0){
+      if(list[idx].name === name && list[idx].mode === eventMode) return; // already in sync, avoid a needless write
+      list[idx] = { code, name, mode:eventMode };
+    } else {
+      list.unshift({ code, name, mode:eventMode });
+    }
+    if(currentUser.mode==='firebase'){
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'users',currentUser.code), { checklists:list }); }
+      catch(e){ console.warn('Profile sync failed', e); }
+    } else {
+      const all = lsGet(LS.localUsers, {});
+      if(all[currentUser.code]){ all[currentUser.code].checklists = list; lsSet(LS.localUsers, all); }
+    }
   }
 
+  async function removeChecklistFromProfile(code){
+    if(!currentUser) return;
+    currentUser.checklists = (currentUser.checklists||[]).filter(c=>c.code!==code);
+    if(currentUser.mode==='firebase'){
+      try{ await fsMod.updateDoc(fsMod.doc(fbDb,'users',currentUser.code), { checklists:currentUser.checklists }); }
+      catch(e){ console.warn('Profile sync failed', e); }
+    } else {
+      const all = lsGet(LS.localUsers, {});
+      if(all[currentUser.code]){ all[currentUser.code].checklists = currentUser.checklists; lsSet(LS.localUsers, all); }
+    }
+    renderHome();
+  }
+
+  function renderProfileBar(){
+    const bar = $('#profile-bar');
+    if(!currentUser){ bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    $('#profile-name-display').textContent = currentUser.name;
+    $('#profile-code-display').textContent = currentUser.code;
+  }
+
+  /* ===================== Accueil ===================== */
   function renderHome(){
     updateModeIndicator();
-    const list = lsGet(LS.recents, []);
+    renderProfileBar();
+    const list = (currentUser && currentUser.checklists) || [];
     const card = $('#recent-card');
     const root = $('#recent-list');
     if(!list.length){ card.classList.add('hidden'); root.innerHTML=''; return; }
     card.classList.remove('hidden');
     root.innerHTML = list.map(r => `
-      <button class="recent-item" data-code="${r.code}" data-mode="${r.mode}">
-        <span class="r-name">${escapeHtml(r.name || t('defaultVoyage'))}</span>
-        <span class="r-code">${r.code} · ${r.mode==='firebase' ? '☁️' : '📦'}</span>
-      </button>
+      <div class="recent-item-row">
+        <button class="recent-item" data-code="${r.code}" data-mode="${r.mode || 'local'}">
+          <span class="r-name">${escapeHtml(r.name || t('defaultVoyage'))}</span>
+          <span class="r-code">${r.code} · ${r.mode==='firebase' ? '☁️' : '📦'}</span>
+        </button>
+        <button class="recent-remove" data-code="${r.code}" aria-label="${t('removeFromMyChecklists')}">✕</button>
+      </div>
     `).join('');
   }
 
@@ -1214,7 +1366,7 @@ service cloud.firestore {
         const migrated = ensureCategories(lastEventData);
         ensureTags(lastEventData);
         renderEvent(lastEventData);
-        pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
+        syncChecklistToProfile(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
         if(migrated) writeCategoriesAndDeletions([]);
       }, err=>{
         console.error(err);
@@ -1229,7 +1381,7 @@ service cloud.firestore {
       ensureTags(lastEventData);
       currentUnsub = ()=>{};
       renderEvent(lastEventData);
-      pushRecent(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
+      syncChecklistToProfile(currentEventCode, lastEventData.name || t('defaultVoyage'), currentMode);
       if(migrated) localPersist();
     }
   }
@@ -1764,14 +1916,32 @@ service cloud.firestore {
     if(e.target.classList.contains('edit-input')) commitEdit(e.target);
   });
 
+  /* ===================== Écran de bienvenue : contrôles ===================== */
+  $('#btn-create-profile').addEventListener('click', handleCreateProfile);
+  $('#input-profile-name').addEventListener('keydown', e=>{ if(e.key==='Enter') handleCreateProfile(); });
+  $('#btn-login-profile').addEventListener('click', handleLoginProfile);
+  $('#input-profile-code').addEventListener('keydown', e=>{ if(e.key==='Enter') handleLoginProfile(); });
+  $('#btn-logout').addEventListener('click', handleLogout);
+  $('#btn-profile-code').addEventListener('click', ()=>{
+    if(!currentUser) return;
+    navigator.clipboard?.writeText(currentUser.code).then(()=> toast(t('codeCopied')))
+      .catch(()=> toast(currentUser.code));
+  });
+
   /* ===================== Gestion de l'écran d'accueil ===================== */
   $('#btn-join').addEventListener('click', handleJoin);
   $('#input-join-code').addEventListener('keydown', e=>{ if(e.key==='Enter') handleJoin(); });
   $('#btn-create').addEventListener('click', handleCreate);
   $('#recent-list').addEventListener('click', (e)=>{
+    const removeBtn = e.target.closest('.recent-remove');
+    if(removeBtn){
+      if(confirm(t('removeChecklistConfirm'))) removeChecklistFromProfile(removeBtn.dataset.code);
+      return;
+    }
     const item = e.target.closest('.recent-item');
-    if(!item) return;
-    const code = item.dataset.code, mode = item.dataset.mode;
+    if(!item || !currentUser) return;
+    const code = item.dataset.code;
+    const mode = item.dataset.mode;
     if(mode==='firebase' && !fbReady){ toast(t('connectToJoin')); return; }
     codeExists(code, mode).then(exists=>{
       if(exists) enterEvent(code, mode);
@@ -1819,7 +1989,7 @@ service cloud.firestore {
       currentEventCode = code;
       currentMode = 'firebase';
       lsSet(LS.current, { code, mode:'firebase' });
-      pushRecent(code, lastEventData.name, 'firebase');
+      syncChecklistToProfile(code, lastEventData.name, 'firebase');
       startListening();
       toast(code===originalCode ? t('exportSuccess') : t('exportSuccessNewCode', { code }));
     } catch(e){
@@ -1853,8 +2023,16 @@ service cloud.firestore {
         delete all[code];
         lsSet(LS.localEvents, all);
       }
-      const list = lsGet(LS.recents, []).filter(r=>r.code!==code);
-      lsSet(LS.recents, list);
+      if(currentUser){
+        currentUser.checklists = (currentUser.checklists||[]).filter(c=>c.code!==code);
+        if(currentUser.mode==='firebase'){
+          try{ await fsMod.updateDoc(fsMod.doc(fbDb,'users',currentUser.code), { checklists:currentUser.checklists }); }
+          catch(e){ console.warn('Profile sync failed', e); }
+        } else {
+          const allUsers = lsGet(LS.localUsers, {});
+          if(allUsers[currentUser.code]){ allUsers[currentUser.code].checklists = currentUser.checklists; lsSet(LS.localUsers, allUsers); }
+        }
+      }
       closeSettings();
       toast(t('deleteEventSuccess'));
       goHome();
@@ -2059,6 +2237,94 @@ service cloud.firestore {
   $('#modal-install').addEventListener('click', (e)=>{ if(e.target.id==='modal-install') $('#modal-install').classList.add('hidden'); });
 
   /* ===================== Initialisation ===================== */
+  /* ===================== Écran de bienvenue (profil) ===================== */
+  async function handleCreateProfile(){
+    const name = $('#input-profile-name').value.trim();
+    if(!name){ toast(t('profileNameRequired')); return; }
+    const btn = $('#btn-create-profile'); btn.disabled = true;
+    try{
+      const mode = fbReady ? 'firebase' : 'local';
+      let code;
+      do{ code = genCode(); } while(await userCodeExists(code, mode));
+      const userDoc = { name, checklists:[], createdAt:Date.now() };
+      if(mode==='firebase'){
+        await fsMod.setDoc(fsMod.doc(fbDb,'users',code), userDoc);
+      } else {
+        const all = lsGet(LS.localUsers, {});
+        all[code] = userDoc;
+        lsSet(LS.localUsers, all);
+      }
+      currentUser = { code, mode, ...userDoc };
+      lsSet(LS.userCode, code);
+      toast(t('profileCreatedToast', { code }));
+      await proceedToApp();
+    } catch(e){
+      toast(t('profileCreateError', { msg:e.message }));
+    } finally { btn.disabled = false; }
+  }
+
+  async function handleLoginProfile(){
+    const code = $('#input-profile-code').value.trim().toUpperCase();
+    const err = $('#profile-login-error');
+    err.classList.add('hidden');
+    if(code.length!==6){ err.textContent = t('profileCodeLenError'); err.classList.remove('hidden'); return; }
+    const btn = $('#btn-login-profile'); btn.disabled = true;
+    try{
+      const mode = fbReady ? 'firebase' : 'local';
+      const udata = await fetchUserDoc(code, mode);
+      if(!udata){
+        err.textContent = t('profileNotFoundError');
+        err.classList.remove('hidden');
+        return;
+      }
+      currentUser = { code, mode, ...udata };
+      if(!Array.isArray(currentUser.checklists)) currentUser.checklists = [];
+      lsSet(LS.userCode, code);
+      await proceedToApp();
+    } catch(e){
+      err.textContent = t('joinErrGeneric', { msg:e.message });
+      err.classList.remove('hidden');
+    } finally { btn.disabled = false; }
+  }
+
+  function handleLogout(){
+    if(!confirm(t('logoutConfirm'))) return;
+    if(currentUnsub) currentUnsub();
+    currentUnsub = null;
+    currentEventCode = null;
+    currentMode = null;
+    lastEventData = null;
+    lsSet(LS.current, null);
+    lsSet(LS.userCode, null);
+    currentUser = null;
+    $('#input-profile-name').value = '';
+    $('#input-profile-code').value = '';
+    showScreen('welcome');
+  }
+
+  // Runs once a profile is active (fresh login/signup, or resumed from a
+  // previous visit): restores the last open event if any, else shows home.
+  async function proceedToApp(){
+    const last = lsGet(LS.current, null);
+    if(last && last.code){
+      if(last.mode==='firebase' && !fbReady){
+        lsSet(LS.current, null);
+        showScreen('home');
+        renderHome();
+      } else {
+        try{
+          const exists = await codeExists(last.code, last.mode);
+          if(exists) enterEvent(last.code, last.mode);
+          else { lsSet(LS.current, null); showScreen('home'); renderHome(); }
+        } catch(e){ showScreen('home'); renderHome(); }
+      }
+    } else {
+      showScreen('home');
+      renderHome();
+    }
+  }
+
+  /* ===================== Initialisation ===================== */
   async function init(){
     document.documentElement.setAttribute('lang', currentLang);
     document.documentElement.setAttribute('data-theme', currentTheme);
@@ -2080,21 +2346,25 @@ service cloud.firestore {
     }
     updateModeIndicator();
 
-    const last = lsGet(LS.current, null);
-    if(last && last.code){
-      if(last.mode==='firebase' && !fbReady){
-        lsSet(LS.current, null);
-        renderHome();
-      } else {
-        try{
-          const exists = await codeExists(last.code, last.mode);
-          if(exists) enterEvent(last.code, last.mode);
-          else { lsSet(LS.current, null); renderHome(); }
-        } catch(e){ renderHome(); }
-      }
-    } else {
-      renderHome();
+    const savedUserCode = lsGet(LS.userCode, null);
+    if(savedUserCode){
+      try{
+        const mode = fbReady ? 'firebase' : 'local';
+        const udata = await fetchUserDoc(savedUserCode, mode);
+        if(udata){
+          currentUser = { code:savedUserCode, mode, ...udata };
+          if(!Array.isArray(currentUser.checklists)) currentUser.checklists = [];
+        } else {
+          lsSet(LS.userCode, null);
+        }
+      } catch(e){ console.warn(e); }
     }
+
+    if(!currentUser){
+      showScreen('welcome');
+      return;
+    }
+    await proceedToApp();
   }
 
   init();
