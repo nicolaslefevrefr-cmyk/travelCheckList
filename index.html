@@ -645,7 +645,10 @@
         <button id="btn-close-settings" class="icon-btn" aria-label="Close">✕</button>
       </div>
       <p class="hint" data-i18n="settingsHint">Enter your Firebase project (Firestore) configuration to sync your checklists across devices and users. Leave these fields empty to stay in local mode (data kept only on this device).</p>
-      <div class="field-col">
+      <button type="button" id="btn-import-config" class="btn btn-ghost" data-i18n="importConfigBtn">📁 Load from file</button>
+      <input type="file" id="input-import-config" accept=".js,.txt,.json,text/javascript,application/json,text/plain" class="hidden" />
+      <p id="import-config-error" class="error-text hidden"></p>
+      <div class="field-col" style="margin-top:12px;">
         <input id="cfg-apiKey" placeholder="apiKey" autocomplete="off" />
         <input id="cfg-authDomain" placeholder="authDomain" autocomplete="off" />
         <input id="cfg-projectId" placeholder="projectId" autocomplete="off" />
@@ -837,6 +840,10 @@ service cloud.firestore {
       exportFail:"Export failed: {msg}",
       settingsModalTitle:"Firebase settings",
       settingsHint:"Enter your Firebase project (Firestore) configuration to sync your checklists across devices and users. Leave these fields empty to stay in local mode (data kept only on this device).",
+      importConfigBtn:"📁 Load from file",
+      importConfigNotFound:"Couldn't find a Firebase configuration in this file (needs at least apiKey and projectId).",
+      importConfigReadError:"Couldn't read this file: {msg}",
+      importConfigSuccess:"Configuration loaded from file — review it, then \"Save & connect\".",
       saveConnect:"Save & connect",
       clear:"Clear",
       statusLocal:"● Local mode",
@@ -974,6 +981,10 @@ service cloud.firestore {
       exportFail:"Échec de l'export : {msg}",
       settingsModalTitle:"Paramètres Firebase",
       settingsHint:"Renseignez la configuration de votre projet Firebase (Firestore) pour synchroniser vos check-lists entre appareils et utilisateurs. Laissez ces champs vides pour rester en mode local (données conservées uniquement sur cet appareil).",
+      importConfigBtn:"📁 Charger depuis un fichier",
+      importConfigNotFound:"Impossible de trouver une configuration Firebase dans ce fichier (il faut au moins apiKey et projectId).",
+      importConfigReadError:"Impossible de lire ce fichier : {msg}",
+      importConfigSuccess:"Configuration chargée depuis le fichier — vérifiez-la puis « Enregistrer & connecter ».",
       saveConnect:"Enregistrer & connecter",
       clear:"Effacer",
       statusLocal:"● Mode local",
@@ -2053,6 +2064,8 @@ service cloud.firestore {
     $('#cfg-storageBucket').value = cfg.storageBucket || '';
     $('#cfg-messagingSenderId').value = cfg.messagingSenderId || '';
     $('#cfg-appId').value = cfg.appId || '';
+    $('#import-config-error').classList.add('hidden');
+    $('#input-import-config').value = '';
     updateSettingsStatus();
     $('#danger-zone').classList.toggle('hidden', !currentEventCode);
     $('#modal-settings').classList.remove('hidden');
@@ -2064,6 +2077,52 @@ service cloud.firestore {
     if(fbReady){ el.textContent = t('statusConnected'); el.className = 'status-row connected'; }
     else { el.textContent = t('statusLocal'); el.className = 'status-row'; }
   }
+
+  // Pulls each known field out of a raw Firebase console snippet, e.g.:
+  //   const firebaseConfig = { apiKey: "...", authDomain: "...", ... };
+  // Works even though that snippet isn't valid JSON (unquoted keys, `const`,
+  // trailing semicolon/commas) because each field is matched independently
+  // rather than parsing the whole object.
+  function parseFirebaseConfigText(text){
+    const fields = ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'];
+    const result = {};
+    fields.forEach(key=>{
+      const re = new RegExp('["\']?' + key + '["\']?\\s*:\\s*["\']([^"\']+)["\']', 'i');
+      const m = text.match(re);
+      if(m) result[key] = m[1].trim();
+    });
+    return result;
+  }
+
+  $('#btn-import-config').addEventListener('click', ()=> $('#input-import-config').click());
+  $('#input-import-config').addEventListener('change', async (e)=>{
+    const file = e.target.files && e.target.files[0];
+    const err = $('#import-config-error');
+    err.classList.add('hidden');
+    if(!file) return;
+    try{
+      const text = await file.text();
+      const parsed = parseFirebaseConfigText(text);
+      if(!parsed.apiKey || !parsed.projectId){
+        err.textContent = t('importConfigNotFound');
+        err.classList.remove('hidden');
+        return;
+      }
+      $('#cfg-apiKey').value = parsed.apiKey || '';
+      $('#cfg-authDomain').value = parsed.authDomain || '';
+      $('#cfg-projectId').value = parsed.projectId || '';
+      $('#cfg-storageBucket').value = parsed.storageBucket || '';
+      $('#cfg-messagingSenderId').value = parsed.messagingSenderId || '';
+      $('#cfg-appId').value = parsed.appId || '';
+      toast(t('importConfigSuccess'));
+    } catch(ex){
+      err.textContent = t('importConfigReadError', { msg:ex.message });
+      err.classList.remove('hidden');
+    } finally {
+      e.target.value = ''; // allow re-importing the same file later if needed
+    }
+  });
+
   $('#btn-settings-home').addEventListener('click', openSettings);
   $('#btn-settings-welcome').addEventListener('click', openSettings);
   $('#btn-settings').addEventListener('click', openSettings);
