@@ -562,6 +562,11 @@
         </div>
         <p id="profile-login-error" class="error-text hidden"></p>
       </div>
+
+      <p class="mode-indicator" id="mode-indicator-welcome">Local mode — no Firebase configured</p>
+      <div style="text-align:center;margin-top:10px;">
+        <button id="btn-settings-welcome" class="btn btn-ghost" data-i18n="settingsBtn">⚙️ Firebase settings</button>
+      </div>
     </section>
 
     <!-- ============ HOME SCREEN ============ -->
@@ -1188,14 +1193,12 @@ service cloud.firestore {
   }
 
   function updateModeIndicator(){
-    const el = $('#mode-indicator');
-    if(fbReady){
-      el.textContent = t('modeConnected');
-      el.classList.add('connected');
-    } else {
-      el.textContent = t('modeLocal');
-      el.classList.remove('connected');
-    }
+    const text = fbReady ? t('modeConnected') : t('modeLocal');
+    [$('#mode-indicator'), $('#mode-indicator-welcome')].forEach(el=>{
+      if(!el) return;
+      el.textContent = text;
+      el.classList.toggle('connected', fbReady);
+    });
   }
 
   /* ===================== Profil utilisateur ===================== */
@@ -2062,6 +2065,7 @@ service cloud.firestore {
     else { el.textContent = t('statusLocal'); el.className = 'status-row'; }
   }
   $('#btn-settings-home').addEventListener('click', openSettings);
+  $('#btn-settings-welcome').addEventListener('click', openSettings);
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-close-settings').addEventListener('click', closeSettings);
   $('#modal-settings').addEventListener('click', (e)=>{ if(e.target.id==='modal-settings') closeSettings(); });
